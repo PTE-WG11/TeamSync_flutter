@@ -1,8 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../config/routes.dart';
 import '../../../../config/theme.dart';
+import '../../../../shared/widgets/cards/admin_stat_card.dart';
+import '../../../../shared/widgets/cards/project_card.dart';
+import '../../domain/entities/dashboard_stats.dart';
+import '../../domain/entities/member_workload.dart';
+import '../../domain/entities/project_summary.dart';
+import '../bloc/dashboard_bloc.dart';
+import '../bloc/dashboard_event.dart';
+import '../bloc/dashboard_state.dart';
+import '../../../project/presentation/bloc/project_bloc.dart';
+import '../../../project/presentation/widgets/create_project_dialog.dart';
 
 /// 管理员首页仪表盘
 /// 功能：项目进度卡片（所有项目）、逾期预警、快捷创建按钮
+/// 
+/// 线框图参考：design_img/线框设计.md - 4.1 管理员首页 - 项目仪表盘
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
 
@@ -11,143 +27,338 @@ class AdminDashboardPage extends StatefulWidget {
 }
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
-  // 时间维度切换
-  String _selectedTimeRange = '本周';
-  final List<String> _timeRanges = ['今日', '本周', '本月', '本季'];
+  @override
+  void initState() {
+    super.initState();
+    // 页面加载时请求数据
+    context.read<DashboardBloc>().add(const DashboardDataRequested());
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: AppSpacing.pagePadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 页面标题 + 快捷创建按钮
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        return Padding(
+          padding: AppSpacing.pagePadding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('项目仪表盘', style: AppTypography.h3),
-              ElevatedButton.icon(
-                onPressed: () {
-                  // TODO: 创建项目
-                },
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('创建项目'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textInverse,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                ),
+              // 页面标题 + 快捷创建按钮
+              _buildHeader(),
+              const SizedBox(height: 24),
+              // 根据状态显示不同内容
+              Expanded(
+                child: _buildBody(state),
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          // 统计概览卡片
-          _buildOverviewCards(),
-          const SizedBox(height: 32),
-          // 逾期预警区域
-          _buildOverdueAlert(),
-          const SizedBox(height: 32),
-          // 项目列表标题 + 时间维度切换
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        );
+      },
+    );
+  }
+
+  /// 构建页面头部
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text('项目仪表盘', style: AppTypography.h3),
+        ElevatedButton.icon(
+          onPressed: () {
+            // TODO: 打开创建项目弹窗
+            _showCreateProjectDialog();
+          },
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('创建项目'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textInverse,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 构建页面主体内容
+  Widget _buildBody(DashboardState state) {
+    if (state is DashboardLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (state is DashboardError) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 48,
+              color: AppColors.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              state.message,
+              style: AppTypography.body.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                context.read<DashboardBloc>().add(const DashboardDataRefreshed());
+              },
+              child: const Text('重新加载'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (state is DashboardLoaded) {
+      return RefreshIndicator(
+        onRefresh: () async {
+          context.read<DashboardBloc>().add(const DashboardDataRefreshed());
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('所有项目', style: AppTypography.h4),
-              _buildTimeRangeSelector(),
+              // 统计概览卡片
+              _buildOverviewCards(state.stats),
+              const SizedBox(height: 24),
+              // 成员工作量统计（横向滚动）
+              _buildMemberWorkloadSection(state.memberWorkloads),
+              const SizedBox(height: 24),
+              // 逾期预警区域
+              _buildOverdueAlert(state.stats.overdueTasks),
+              const SizedBox(height: 24),
+              // 项目列表标题 + 时间维度切换
+              _buildProjectsHeader(state.timeRange),
+              const SizedBox(height: 16),
+              // 项目进度卡片列表
+              _buildProjectList(state.projects),
+              const SizedBox(height: 32),
             ],
           ),
-          const SizedBox(height: 16),
-          // 项目进度卡片列表
-          Expanded(
-            child: _buildProjectList(),
-          ),
-        ],
-      ),
+        ),
+      );
+    }
+
+    // 初始状态，显示加载中
+    return const Center(
+      child: CircularProgressIndicator(),
     );
   }
 
   /// 统计概览卡片
-  Widget _buildOverviewCards() {
-    final stats = [
-      _StatData('活跃项目', '12', AppColors.primary, Icons.folder_open),
-      _StatData('总任务数', '156', AppColors.info, Icons.task_alt),
-      _StatData('完成率', '87%', AppColors.success, Icons.trending_up),
-      _StatData('逾期任务', '8', AppColors.error, Icons.warning_amber),
-    ];
-
+  Widget _buildOverviewCards(DashboardStats stats) {
     return Row(
-      children: stats.map((stat) => Expanded(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: _buildStatCard(stat),
+      children: [
+        Expanded(
+          child: AdminStatCard(
+            type: AdminStatCardType.activeProjects,
+            value: stats.activeProjects,
+            onTap: () {
+              // 可以跳转到项目列表并过滤活跃项目
+            },
+          ),
         ),
-      )).toList(),
+        const SizedBox(width: 16),
+        Expanded(
+          child: AdminStatCard(
+            type: AdminStatCardType.totalTasks,
+            value: stats.totalTasks,
+            onTap: () {
+              // 可以跳转到任务列表
+            },
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: AdminStatCard(
+            type: AdminStatCardType.completionRate,
+            value: stats.completionRate,
+            onTap: () {
+              // 可以跳转到报表页面
+            },
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: AdminStatCard(
+            type: AdminStatCardType.overdueTasks,
+            value: stats.overdueTasks,
+            onTap: () {
+              // 可以跳转到逾期任务列表
+            },
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildStatCard(_StatData stat) {
+  /// 成员工作量统计区域
+  Widget _buildMemberWorkloadSection(List<MemberWorkload> workloads) {
+    if (workloads.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('成员工作量', style: AppTypography.h4),
+        const SizedBox(height: 12),
+        Container(
+          constraints: const BoxConstraints(
+            minHeight: 110,
+            maxHeight: 120,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            boxShadow: AppShadows.card,
+          ),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.all(16),
+            itemCount: workloads.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 16),
+            itemBuilder: (context, index) {
+              final member = workloads[index];
+              return _buildMemberWorkloadItem(member);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 成员工作量项
+  Widget _buildMemberWorkloadItem(MemberWorkload member) {
+    final hasOverdue = member.overdueTasks > 0;
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: 140,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: AppShadows.card,
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: hasOverdue ? AppColors.error.withOpacity(0.3) : AppColors.border,
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: stat.color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
+      child: IntrinsicHeight(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 头像和用户名
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: AppColors.primaryLight,
+                  child: Text(
+                    member.username.isNotEmpty ? member.username[0] : '?',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-                child: Icon(
-                  stat.icon,
-                  color: stat.color,
-                  size: 20,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    member.username,
+                    style: AppTypography.body.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            stat.value,
-            style: AppTypography.h2.copyWith(
-              fontWeight: FontWeight.bold,
+              ],
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            stat.label,
-            style: AppTypography.body.copyWith(
-              color: AppColors.textSecondary,
+            // 使用 SizedBox 替代 Spacer，避免无限高度问题
+            const SizedBox(height: 12),
+            // 任务统计和完成率
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${member.completedTasks}/${member.assignedTasks}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: hasOverdue
+                        ? AppColors.errorLight
+                        : AppColors.successLight,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '${member.completionRate.toInt()}%',
+                    style: AppTypography.caption.copyWith(
+                      color: hasOverdue ? AppColors.error : AppColors.success,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   /// 逾期预警区域
-  Widget _buildOverdueAlert() {
+  Widget _buildOverdueAlert(int overdueCount) {
+    if (overdueCount == 0) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.successLight,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(color: AppColors.success.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: AppColors.success, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              '当前没有逾期任务，团队进度良好！',
+              style: AppTypography.body.copyWith(
+                fontWeight: FontWeight.w500,
+                color: AppColors.success,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // // 模拟逾期任务数据
+    // final overdueTasks = [
+    //   _OverdueTask('数据库设计', '电商平台重构', '李四', '已逾期2天'),
+    //   _OverdueTask('API 接口开发', 'TeamSync 开发项目', '王五', '已逾期1天'),
+    // ];
     final overdueTasks = [
       _OverdueTask('数据库设计', '电商平台重构', '李四', '已逾期2天'),
-      _OverdueTask('API接口开发', '用户中心系统', '王五', '已逾期1天'),
+      _OverdueTask('API 接口开发', 'TeamSync 开发项目', '王五', '已逾期1天'),
     ];
-
-    if (overdueTasks.isEmpty) {
-      return const SizedBox.shrink();
-    }
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.errorLight,
         borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.error.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,7 +418,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: AppColors.error.withValues(alpha: 0.1),
+              color: AppColors.error.withOpacity(0.1),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
@@ -223,8 +434,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  /// 项目列表标题
+  Widget _buildProjectsHeader(String selectedTimeRange) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text('最近项目', style: AppTypography.h4),
+        _buildTimeRangeSelector(selectedTimeRange),
+      ],
+    );
+  }
+
   /// 时间维度切换选择器
-  Widget _buildTimeRangeSelector() {
+  Widget _buildTimeRangeSelector(String selectedRange) {
+    final timeRanges = ['今日', '本周', '本月', '本季'];
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -233,10 +457,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: _timeRanges.map((range) {
-          final isSelected = range == _selectedTimeRange;
+        children: timeRanges.map((range) {
+          final isSelected = range == selectedRange;
           return InkWell(
-            onTap: () => setState(() => _selectedTimeRange = range),
+            onTap: () {
+              context.read<DashboardBloc>().add(DashboardTimeRangeChanged(range));
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
@@ -246,7 +472,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               child: Text(
                 range,
                 style: AppTypography.body.copyWith(
-                  color: isSelected ? AppColors.textInverse : AppColors.textSecondary,
+                  color: isSelected
+                      ? AppColors.textInverse
+                      : AppColors.textSecondary,
                   fontWeight: isSelected ? FontWeight.w500 : null,
                 ),
               ),
@@ -258,70 +486,154 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   /// 项目进度卡片列表
-  Widget _buildProjectList() {
-    final projects = [
-      _ProjectData(
-        id: 1,
-        name: '用户中心系统',
-        status: '进行中',
-        statusColor: AppColors.statusInProgress,
-        progress: 0.65,
-        completedTasks: 12,
-        totalTasks: 20,
-        memberCount: 8,
-        startDate: '2月1日',
-        endDate: '4月30日',
-        description: '开发新一代用户认证和权限管理系统...',
-      ),
-      _ProjectData(
-        id: 2,
-        name: '电商平台重构',
-        status: '规划中',
-        statusColor: AppColors.statusPlanning,
-        progress: 0.30,
-        completedTasks: 5,
-        totalTasks: 15,
-        memberCount: 5,
-        startDate: '3月1日',
-        endDate: '5月15日',
-        description: '对现有电商平台进行技术架构升级...',
-      ),
-      _ProjectData(
-        id: 3,
-        name: '官网改版',
-        status: '已完成',
-        statusColor: AppColors.statusCompleted,
-        progress: 1.0,
-        completedTasks: 18,
-        totalTasks: 18,
-        memberCount: 4,
-        startDate: '1月15日',
-        endDate: '2月15日',
-        description: '公司官方网站重新设计开发...',
-      ),
-    ];
+  Widget _buildProjectList(List<ProjectSummary> projects) {
+    if (projects.isEmpty) {
+      return Center(
+        child: Column(
+          children: [
+            Icon(
+              Icons.folder_outlined,
+              size: 48,
+              color: AppColors.textDisabled,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '暂无项目',
+              style: AppTypography.body.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
-    return ListView.builder(
-      padding: EdgeInsets.zero,
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: projects.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 16),
       itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: _ProjectCard(project: projects[index]),
+        final project = projects[index];
+        return ProjectCard(
+          project: project,
+          onTap: () {
+            // 跳转到项目详情页
+            context.go('${AppRoutes.projects}/${project.id}');
+          },
+          onMoreTap: () {
+            // 显示更多操作菜单
+            _showProjectActions(project);
+          },
         );
       },
     );
   }
-}
 
-/// 统计数据
-class _StatData {
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-
-  _StatData(this.label, this.value, this.color, this.icon);
+  /// 显示创建项目弹窗
+  // void _showCreateProjectDialog() {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: Text('创建新项目', style: AppTypography.h4),
+  //       content: SizedBox(
+  //         width: 480,
+  //         child: Column(
+  //           mainAxisSize: MainAxisSize.min,
+  //           children: [
+  //             TextField(
+  //               decoration: InputDecoration(
+  //                 labelText: '项目名称',
+  //                 hintText: '请输入项目名称',
+  //                 border: OutlineInputBorder(
+  //                   borderRadius: BorderRadius.circular(AppRadius.lg),
+  //                 ),
+  //               ),
+  //             ),
+  //             const SizedBox(height: 16),
+  //             TextField(
+  //               maxLines: 3,
+  //               decoration: InputDecoration(
+  //                 labelText: '项目描述',
+  //                 hintText: '请输入项目描述',
+  //                 border: OutlineInputBorder(
+  //                   borderRadius: BorderRadius.circular(AppRadius.lg),
+  //                 ),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context),
+  //           child: const Text('取消'),
+  //         ),
+  //         ElevatedButton(
+  //           onPressed: () {
+  //             Navigator.pop(context);
+  //             // TODO: 调用创建项目 API
+  //           },
+  //           child: const Text('创建项目'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+  // 2. 修改显示弹窗的方法
+  void _showCreateProjectDialog() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => BlocProvider(
+        // 因为仪表盘本身没有 ProjectBloc，这里我们需要创建一个新的实例
+        create: (context) => ProjectBloc(),
+        child: const CreateProjectDialog(),
+      ),
+    ).then((_) {
+      // 弹窗关闭后，刷新仪表盘数据以显示新项目
+      if (mounted) {
+        context.read<DashboardBloc>().add(const DashboardDataRequested());
+      }
+    });
+  }
+  /// 显示项目操作菜单
+  void _showProjectActions(ProjectSummary project) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('编辑项目'),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: 打开编辑项目弹窗
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.archive_outlined),
+              title: const Text('归档项目'),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: 归档项目
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: AppColors.error),
+              title: const Text('删除项目', style: TextStyle(color: AppColors.error)),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: 删除项目确认
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// 逾期任务数据
@@ -332,166 +644,4 @@ class _OverdueTask {
   final String overdueTime;
 
   _OverdueTask(this.taskName, this.projectName, this.assignee, this.overdueTime);
-}
-
-/// 项目数据
-class _ProjectData {
-  final int id;
-  final String name;
-  final String status;
-  final Color statusColor;
-  final double progress;
-  final int completedTasks;
-  final int totalTasks;
-  final int memberCount;
-  final String startDate;
-  final String endDate;
-  final String description;
-
-  _ProjectData({
-    required this.id,
-    required this.name,
-    required this.status,
-    required this.statusColor,
-    required this.progress,
-    required this.completedTasks,
-    required this.totalTasks,
-    required this.memberCount,
-    required this.startDate,
-    required this.endDate,
-    required this.description,
-  });
-}
-
-/// 项目进度卡片
-class _ProjectCard extends StatelessWidget {
-  final _ProjectData project;
-
-  const _ProjectCard({required this.project});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: AppSpacing.cardPadding,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: AppShadows.card,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // 状态标签
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: project.statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: project.statusColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      project.status,
-                      style: AppTypography.label.copyWith(
-                        color: project.statusColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              // 操作按钮
-              IconButton(
-                onPressed: () {},
-                icon: Icon(
-                  Icons.more_vert,
-                  color: AppColors.textSecondary,
-                  size: 20,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // 项目名称
-          Text(project.name, style: AppTypography.h4),
-          const SizedBox(height: 8),
-          // 描述
-          Text(
-            project.description,
-            style: AppTypography.body.copyWith(
-              color: AppColors.textSecondary,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 16),
-          // 进度条
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: project.progress,
-              backgroundColor: AppColors.border,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                project.progress == 1.0 ? AppColors.success : AppColors.primary,
-              ),
-              minHeight: 8,
-            ),
-          ),
-          const SizedBox(height: 8),
-          // 进度信息
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${(project.progress * 100).toInt()}%',
-                style: AppTypography.body.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: project.progress == 1.0 ? AppColors.success : AppColors.primary,
-                ),
-              ),
-              Text(
-                '${project.completedTasks}/${project.totalTasks} 个任务完成',
-                style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          // 底部信息
-          Row(
-            children: [
-              Icon(Icons.people_outline, size: 16, color: AppColors.textSecondary),
-              const SizedBox(width: 4),
-              Text(
-                '${project.memberCount}人参与',
-                style: AppTypography.bodySmall,
-              ),
-              const SizedBox(width: 16),
-              Icon(Icons.date_range, size: 16, color: AppColors.textSecondary),
-              const SizedBox(width: 4),
-              Text(
-                '${project.startDate} - ${project.endDate}',
-                style: AppTypography.bodySmall,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 }

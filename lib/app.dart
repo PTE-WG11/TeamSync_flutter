@@ -20,7 +20,7 @@ class _TeamSyncAppState extends State<TeamSyncApp> {
   @override
   void initState() {
     super.initState();
-    _authBloc = AuthBloc();
+    _authBloc = AuthBloc()..add(const AuthCheckRequested());
     _router = AppRoutes.createRouter(_authBloc);
   }
 

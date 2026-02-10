@@ -4,6 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../../features/project/presentation/bloc/project_bloc.dart';
+import '../../../features/project/presentation/widgets/create_project_dialog.dart';
+import '../../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
+import '../../../features/dashboard/presentation/bloc/dashboard_event.dart';
 
 
 /// 主布局框架
@@ -23,16 +27,40 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   // 模拟数据 - 后续从API获取
   final List<Map<String, dynamic>> _projects = const [
-    {'id': 1, 'name': '用户中心系统', 'status': 'in_progress'},
-    {'id': 2, 'name': '电商平台重构', 'status': 'planning'},
-    {'id': 3, 'name': '官网改版', 'status': 'completed'},
+    {'id': 1, 'name': '团队同步开发项目', 'status': 'in_progress'},
+    {'id': 2, 'name': '官网改版项目', 'status': 'planning'},
+    {'id': 3, 'name': '电商重构项目', 'status': 'completed'},
+    {'id': 4, 'name': '移动端 APP 开发', 'status': 'archived'},
   ];
 
   final List<Map<String, dynamic>> _archivedProjects = const [
-    {'id': 4, 'name': '旧官网项目', 'status': 'archived'},
+    {'id': 5, 'name': '旧官网项目', 'status': 'archived'},
   ];
 
   final int _unreadNotificationCount = 3;
+
+  /// 显示创建项目弹窗
+  void _showCreateProjectDialog() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => BlocProvider(
+        create: (context) => ProjectBloc(),
+        child: const CreateProjectDialog(),
+      ),
+    ).then((_) {
+      // 弹窗关闭后，根据当前页面刷新数据
+      if (!mounted) return;
+      
+      final location = GoRouterState.of(context).matchedLocation;
+      if (location == AppRoutes.home) {
+        // 如果在仪表盘，刷新仪表盘
+        context.read<DashboardBloc>().add(const DashboardDataRequested());
+      } else if (location.startsWith(AppRoutes.projects)) {
+        // 如果在项目相关页面，可以发送刷新请求（取决于该页面是否监听了 ProjectBloc）
+        // 这里暂时通过路由重新触发加载逻辑或通知相关 Bloc
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,13 +96,31 @@ class _MainLayoutState extends State<MainLayout> {
                   archivedProjects: _archivedProjects,
                   currentRoute: location,
                   onRouteSelected: (route) => context.go(route),
+                  onCreateProject: _showCreateProjectDialog,
                   isAdmin: isAdmin,
                 ),
-                // 主内容区
+                // 主内容区 - 设置最小宽度防止内容溢出
                 Expanded(
                   child: Container(
                     color: AppColors.background,
-                    child: widget.child,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minWidth: 800,
+                              minHeight: constraints.maxHeight,
+                            ),
+                            child: SizedBox(
+                              width: constraints.maxWidth.clamp(800, double.infinity),
+                              height: constraints.maxHeight,
+                              child: widget.child,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -351,6 +397,7 @@ class _Sidebar extends StatelessWidget {
   final List<Map<String, dynamic>> archivedProjects;
   final String currentRoute;
   final ValueChanged<String> onRouteSelected;
+  final VoidCallback onCreateProject;
   final bool isAdmin;
 
   const _Sidebar({
@@ -358,6 +405,7 @@ class _Sidebar extends StatelessWidget {
     required this.archivedProjects,
     required this.currentRoute,
     required this.onRouteSelected,
+    required this.onCreateProject,
     required this.isAdmin,
   });
 
@@ -377,11 +425,7 @@ class _Sidebar extends StatelessWidget {
               label: '项目仪表盘',
               route: AppRoutes.home,
             ),
-            _buildMenuItem(
-              icon: Icons.add_circle_outline,
-              label: '创建项目',
-              route: '/projects/create', // 占位
-            ),
+            _buildCreateProjectButton(context),
             _buildMenuItem(
               icon: Icons.people_outline,
               label: '成员管理',
@@ -413,6 +457,11 @@ class _Sidebar extends StatelessWidget {
           
           // 项目列表（管理员和成员都可见）
           _buildSectionTitle('项目'),
+          _buildMenuItem(
+            icon: Icons.folder_outlined,
+            label: '所有项目',
+            route: AppRoutes.projects,
+          ),
           ...projects.map((project) => _buildProjectItem(project)),
           const Divider(height: 32),
           
@@ -463,6 +512,36 @@ class _Sidebar extends StatelessWidget {
     );
   }
 
+  /// 构建创建项目按钮
+  Widget _buildCreateProjectButton(BuildContext context) {
+    return InkWell(
+      onTap: onCreateProject,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.add_circle_outline,
+              size: 18,
+              color: AppColors.textSecondary,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '创建项目',
+              style: AppTypography.body.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMenuItem({
     required IconData icon,
     required String label,
@@ -501,7 +580,9 @@ class _Sidebar extends StatelessWidget {
   }
 
   Widget _buildProjectItem(Map<String, dynamic> project, {bool isArchived = false}) {
-    final projectRoute = '${AppRoutes.projects}/${project['id']}';
+    // final projectRoute = '${AppRoutes.projects}/${project['id']}';
+    final projectId = project['id'].toString();
+    final projectRoute = '${AppRoutes.projects}/$projectId';
     final isSelected = currentRoute == projectRoute;
 
     // 根据状态获取颜色

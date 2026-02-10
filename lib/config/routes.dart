@@ -6,8 +6,12 @@ import 'dart:async';
 import '../features/auth/presentation/bloc/auth_bloc.dart';
 import '../features/auth/presentation/pages/login_page.dart';
 import '../features/auth/presentation/pages/register_page.dart';
+import '../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import '../features/dashboard/presentation/pages/admin_dashboard_page.dart';
 import '../features/dashboard/presentation/pages/member_dashboard_page.dart';
+import '../features/project/presentation/bloc/project_bloc.dart';
+import '../features/project/presentation/pages/project_detail_page.dart';
+import '../features/project/presentation/pages/project_list_page.dart';
 import '../shared/widgets/layout/main_layout.dart';
 import 'theme.dart';
 
@@ -94,7 +98,10 @@ class AppRoutes {
         ),
         // 主布局包裹的页面
         ShellRoute(
-          builder: (context, state, child) => MainLayout(child: child),
+          builder: (context, state, child) => BlocProvider(
+            create: (context) => DashboardBloc(),
+            child: MainLayout(child: child),
+          ),
           routes: [
             // 首页（仪表盘）- 根据角色显示不同页面
             GoRoute(
@@ -104,30 +111,42 @@ class AppRoutes {
                 final authState = context.read<AuthBloc>().state;
                 final isAdmin = authState is AuthAuthenticated && authState.isAdmin;
                 
-                return NoTransitionPage(
-                  child: isAdmin 
-                      ? const AdminDashboardPage() 
-                      : const MemberDashboardPage(),
-                );
+                if (isAdmin) {
+                  return const NoTransitionPage(
+                    child: AdminDashboardPage(),
+                  );
+                } else {
+                  // 成员首页
+                  return const NoTransitionPage(
+                    child: MemberDashboardPage(),
+                  );
+                }
               },
             ),
             // 项目列表
             GoRoute(
               path: projects,
               name: 'projects',
-              pageBuilder: (context, state) => const NoTransitionPage(
-                child: PlaceholderPage(title: '项目列表'),
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: BlocProvider(
+                  create: (_) => ProjectBloc(),
+                  child: const ProjectListPage(),
+                ),
               ),
             ),
             // 项目详情
             GoRoute(
               path: projectDetail,
               name: 'projectDetail',
-              pageBuilder: (context, state) => NoTransitionPage(
-                child: PlaceholderPage(
-                  title: '项目详情 #${state.pathParameters['id']}',
-                ),
-              ),
+              pageBuilder: (context, state) {
+                final projectId = int.parse(state.pathParameters['id']!);
+                return NoTransitionPage(
+                  child: BlocProvider(
+                    create: (_) => ProjectBloc(),
+                    child: ProjectDetailPage(projectId: projectId),
+                  ),
+                );
+              },
             ),
             // 日历视图
             GoRoute(
