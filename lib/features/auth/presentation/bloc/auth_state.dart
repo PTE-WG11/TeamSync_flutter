@@ -39,6 +39,19 @@ class AuthAuthenticated extends AuthState {
   bool get isVisitor => role == UserRole.visitor;
   bool get isAdmin => role == UserRole.superAdmin || role == UserRole.teamAdmin;
   bool get isMember => role == UserRole.member;
+  
+  String get roleDisplayName {
+    switch (role) {
+      case UserRole.superAdmin:
+        return '超级管理员';
+      case UserRole.teamAdmin:
+        return '团队管理员';
+      case UserRole.member:
+        return '团队成员';
+      case UserRole.visitor:
+        return '访客';
+    }
+  }
 
   @override
   List<Object?> get props => [userId, username, email, role];

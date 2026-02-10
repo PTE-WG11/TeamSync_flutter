@@ -6,6 +6,7 @@ import 'dart:async';
 import '../features/auth/presentation/bloc/auth_bloc.dart';
 import '../features/auth/presentation/pages/login_page.dart';
 import '../features/auth/presentation/pages/register_page.dart';
+import '../features/dashboard/presentation/pages/admin_dashboard_page.dart';
 import '../features/dashboard/presentation/pages/member_dashboard_page.dart';
 import '../shared/widgets/layout/main_layout.dart';
 import 'theme.dart';
@@ -95,13 +96,20 @@ class AppRoutes {
         ShellRoute(
           builder: (context, state, child) => MainLayout(child: child),
           routes: [
-            // 首页（仪表盘）
+            // 首页（仪表盘）- 根据角色显示不同页面
             GoRoute(
               path: home,
               name: 'home',
-              pageBuilder: (context, state) => const NoTransitionPage(
-                child: MemberDashboardPage(),
-              ),
+              pageBuilder: (context, state) {
+                final authState = context.read<AuthBloc>().state;
+                final isAdmin = authState is AuthAuthenticated && authState.isAdmin;
+                
+                return NoTransitionPage(
+                  child: isAdmin 
+                      ? const AdminDashboardPage() 
+                      : const MemberDashboardPage(),
+                );
+              },
             ),
             // 项目列表
             GoRoute(

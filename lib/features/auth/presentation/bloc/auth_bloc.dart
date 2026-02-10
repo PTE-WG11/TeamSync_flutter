@@ -24,21 +24,47 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       // TODO: 调用登录 API
       await Future.delayed(const Duration(seconds: 1));
 
-      // 模拟登录成功
-      if (event.username == 'visitor') {
-        emit(AuthAuthenticated(
-          userId: '1',
-          username: event.username,
-          email: 'visitor@example.com',
-          role: UserRole.visitor,
-        ));
-      } else {
-        emit(AuthAuthenticated(
-          userId: '2',
-          username: event.username,
-          email: '${event.username}@example.com',
-          role: UserRole.member,
-        ));
+      final username = event.username.trim().toLowerCase();
+
+      // 模拟登录 - 测试账号
+      switch (username) {
+        case 'admin':
+        case 'manager':
+          // 团队管理员账号
+          emit(AuthAuthenticated(
+            userId: 'admin_001',
+            username: '张三',
+            email: 'admin@teamsync.com',
+            role: UserRole.teamAdmin,
+          ));
+          break;
+        case 'member':
+        case 'user':
+          // 团队成员账号
+          emit(AuthAuthenticated(
+            userId: 'member_001',
+            username: '李四',
+            email: 'member@teamsync.com',
+            role: UserRole.member,
+          ));
+          break;
+        case 'visitor':
+          // 访客账号
+          emit(AuthAuthenticated(
+            userId: 'visitor_001',
+            username: event.username,
+            email: 'visitor@example.com',
+            role: UserRole.visitor,
+          ));
+          break;
+        default:
+          // 默认作为团队成员登录
+          emit(AuthAuthenticated(
+            userId: 'member_${username.hashCode}',
+            username: event.username,
+            email: '${username}@example.com',
+            role: UserRole.member,
+          ));
       }
     } catch (e) {
       emit(AuthError(message: '登录失败: $e'));

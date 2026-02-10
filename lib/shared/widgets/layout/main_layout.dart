@@ -38,6 +38,7 @@ class _MainLayoutState extends State<MainLayout> {
   Widget build(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
     final user = authState is AuthAuthenticated ? authState : null;
+    final isAdmin = user?.isAdmin ?? false;
 
     // 获取当前路由
     final location = GoRouterState.of(context).matchedLocation;
@@ -48,7 +49,8 @@ class _MainLayoutState extends State<MainLayout> {
           // 顶部导航栏
           _TopNavigationBar(
             userName: user?.username ?? '',
-            userRole: user?.role.name ?? '',
+            userRole: user?.roleDisplayName ?? '',
+            isAdmin: isAdmin,
             unreadNotificationCount: _unreadNotificationCount,
             currentRoute: location,
             onNotificationTap: () => context.go(AppRoutes.notifications),
@@ -60,12 +62,13 @@ class _MainLayoutState extends State<MainLayout> {
           Expanded(
             child: Row(
               children: [
-                // 左侧边栏
+                // 左侧边栏 - 根据角色显示不同菜单
                 _Sidebar(
                   projects: _projects,
                   archivedProjects: _archivedProjects,
                   currentRoute: location,
                   onRouteSelected: (route) => context.go(route),
+                  isAdmin: isAdmin,
                 ),
                 // 主内容区
                 Expanded(
@@ -88,6 +91,7 @@ class _MainLayoutState extends State<MainLayout> {
 class _TopNavigationBar extends StatelessWidget {
   final String userName;
   final String userRole;
+  final bool isAdmin;
   final int unreadNotificationCount;
   final String currentRoute;
   final VoidCallback onNotificationTap;
@@ -96,6 +100,7 @@ class _TopNavigationBar extends StatelessWidget {
   const _TopNavigationBar({
     required this.userName,
     required this.userRole,
+    required this.isAdmin,
     required this.unreadNotificationCount,
     required this.currentRoute,
     required this.onNotificationTap,
@@ -118,10 +123,10 @@ class _TopNavigationBar extends StatelessWidget {
           // Logo
           _buildLogo(),
           const SizedBox(width: 48),
-          // 全局导航
-          _buildNavItem(context, '首页', AppRoutes.home),
+          // 全局导航 - 管理员显示"仪表盘"，成员显示"首页"
+          _buildNavItem(context, isAdmin ? '仪表盘' : '首页', AppRoutes.home),
           _buildNavItem(context, '项目', AppRoutes.projects),
-          _buildNavItem(context, '团队', AppRoutes.members),
+          if (isAdmin) _buildNavItem(context, '团队', AppRoutes.members),
           _buildNavItem(context, '日历', AppRoutes.calendar),
           const Spacer(),
           // 通知中心
@@ -346,12 +351,14 @@ class _Sidebar extends StatelessWidget {
   final List<Map<String, dynamic>> archivedProjects;
   final String currentRoute;
   final ValueChanged<String> onRouteSelected;
+  final bool isAdmin;
 
   const _Sidebar({
     required this.projects,
     required this.archivedProjects,
     required this.currentRoute,
     required this.onRouteSelected,
+    required this.isAdmin,
   });
 
   @override
@@ -362,31 +369,60 @@ class _Sidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 个人工作区
-          _buildSectionTitle('我的工作'),
-          _buildMenuItem(
-            icon: Icons.task_alt,
-            label: '我的任务',
-            route: AppRoutes.home,
-          ),
-          _buildMenuItem(
-            icon: Icons.calendar_today_outlined,
-            label: '日历视图',
-            route: AppRoutes.calendar,
-          ),
-          _buildMenuItem(
-            icon: Icons.folder_outlined,
-            label: '文件管理',
-            route: '/files', // 占位
-          ),
-          const Divider(height: 32),
-          // 项目列表
+          // 管理员：快捷管理区域
+          if (isAdmin) ...[
+            _buildSectionTitle('快捷管理'),
+            _buildMenuItem(
+              icon: Icons.dashboard_outlined,
+              label: '项目仪表盘',
+              route: AppRoutes.home,
+            ),
+            _buildMenuItem(
+              icon: Icons.add_circle_outline,
+              label: '创建项目',
+              route: '/projects/create', // 占位
+            ),
+            _buildMenuItem(
+              icon: Icons.people_outline,
+              label: '成员管理',
+              route: AppRoutes.members,
+            ),
+            const Divider(height: 32),
+          ],
+          
+          // 成员：个人工作区
+          if (!isAdmin) ...[
+            _buildSectionTitle('我的工作'),
+            _buildMenuItem(
+              icon: Icons.task_alt,
+              label: '我的任务',
+              route: AppRoutes.home,
+            ),
+            _buildMenuItem(
+              icon: Icons.calendar_today_outlined,
+              label: '日历视图',
+              route: AppRoutes.calendar,
+            ),
+            _buildMenuItem(
+              icon: Icons.folder_outlined,
+              label: '文件管理',
+              route: '/files', // 占位
+            ),
+            const Divider(height: 32),
+          ],
+          
+          // 项目列表（管理员和成员都可见）
           _buildSectionTitle('项目'),
           ...projects.map((project) => _buildProjectItem(project)),
           const Divider(height: 32),
-          // 归档项目
-          _buildSectionTitle('归档项目'),
-          ...archivedProjects.map((project) => _buildProjectItem(project, isArchived: true)),
+          
+          // 归档项目（仅管理员可见）
+          if (isAdmin) ...[
+            _buildSectionTitle('归档项目'),
+            ...archivedProjects.map((project) => _buildProjectItem(project, isArchived: true)),
+            const Divider(height: 32),
+          ],
+          
           const Spacer(),
           // 底部帮助链接
           Padding(
