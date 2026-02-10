@@ -1,0 +1,1528 @@
+openapi: 3.0.0
+info:
+  title: TeamSync REST API
+  description: TeamSync 团队协作管理系统 RESTful API 接口文档
+  version: "1.0"
+  contact:
+    name: TeamSync API 团队
+  license:
+    name: 私有协议
+servers:
+  - url: https://api.teamsync.com/v1
+    description: 生产环境
+  - url: http://localhost:8000/api
+    description: 开发环境
+tags:
+  - name: 认证模块
+    description: 用户登录、令牌管理相关接口
+  - name: 项目管理
+    description: 项目的创建、查询、更新、删除等操作
+  - name: 任务管理
+    description: 任务的增删改查、子任务管理
+  - name: 可视化数据
+    description: 甘特图、看板、日历等可视化数据接口
+  - name: 成员管理
+    description: 团队成员管理、邀请、角色设置
+  - name: 通知模块
+    description: 系统通知管理
+  - name: 文件管理
+    description: 文件上传、下载、管理
+  - name: WebSocket
+    description: 实时通信接口
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - 认证模块
+      summary: 用户登录
+      description: 用户使用用户名和密码登录系统
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              username: "zhangsan"
+              password: "password123"
+      responses:
+        "200":
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "登录成功"
+                data:
+                  access_token: "eyJhbGciOiJIUzI1NiIs..."
+                  refresh_token: "eyJhbGciOiJIUzI1NiIs..."
+                  expires_at: "2026-02-10T09:44:13Z"
+                  user:
+                    id: 1
+                    username: "zhangsan"
+                    email: "zhangsan@example.com"
+                    role: "member"
+                    avatar: "https://..."
+        "401":
+          description: 用户名或密码错误
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: 1001
+                message: "用户名或密码错误"
+                errors: {}
+
+  /auth/refresh:
+    post:
+      tags:
+        - 认证模块
+      summary: Token刷新
+      description: 使用刷新令牌换取新的访问令牌
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+            example:
+              refresh_token: "eyJhbGciOiJIUzI1NiIs..."
+      responses:
+        "200":
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "刷新成功"
+                data:
+                  access_token: "eyJhbGciOiJIUzI1NiIs..."
+                  expires_at: "2026-02-10T09:44:13Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/logout:
+    post:
+      tags:
+        - 认证模块
+      summary: 用户登出
+      description: 用户登出系统，使当前token失效
+      operationId: logout
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "登出成功"
+                data: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/me:
+    get:
+      tags:
+        - 认证模块
+      summary: 获取当前用户信息
+      description: 获取当前登录用户的详细信息
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: 成功获取用户信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "success"
+                data:
+                  id: 1
+                  username: "zhangsan"
+                  email: "zhangsan@example.com"
+                  role: "member"
+                  role_display: "团队成员"
+                  avatar: "https://..."
+                  team_id: 1
+                  created_at: "2026-01-01T00:00:00Z"
+                  permissions:
+                    - "view_project"
+                    - "edit_own_task"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /projects:
+    get:
+      tags:
+        - 项目管理
+      summary: 获取项目列表
+      description: 获取项目列表，支持分页和条件过滤
+      operationId: getProjects
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: 状态过滤
+          schema:
+            type: string
+            enum: [planning, pending, in_progress, completed]
+        - name: is_archived
+          in: query
+          description: 是否包含归档项目
+          schema:
+            type: boolean
+            default: false
+        - name: search
+          in: query
+          description: 标题搜索关键词
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: 成功获取项目列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse"
+              example:
+                code: 200
+                message: "success"
+                data:
+                  items:
+                    - id: 1
+                      title: "电商平台重构"
+                      description: "对现有电商平台进行技术重构"
+                      status: "in_progress"
+                      progress: 45.5
+                      member_count: 5
+                      overdue_task_count: 2
+                      is_archived: false
+                      created_by:
+                        id: 2
+                        username: "admin"
+                      created_at: "2026-01-15T08:00:00Z"
+                      updated_at: "2026-02-09T10:00:00Z"
+                  pagination:
+                    page: 1
+                    page_size: 20
+                    total: 10
+                    total_pages: 1
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags:
+        - 项目管理
+      summary: 创建项目
+      description: 创建新项目（仅限管理员）
+      operationId: createProject
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectCreateRequest"
+            example:
+              title: "新官网开发"
+              description: "公司官方网站开发"
+              status: "planning"
+              start_date: "2026-02-15"
+              end_date: "2026-03-15"
+              member_ids: [1, 2, 3]
+      responses:
+        "201":
+          description: 项目创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 201
+                message: "项目创建成功"
+                data:
+                  id: 2
+                  title: "新官网开发"
+                  description: "公司官方网站开发"
+                  status: "planning"
+                  progress: 0
+                  is_archived: false
+                  created_by:
+                    id: 1
+                    username: "admin"
+                  members:
+                    - id: 1
+                      username: "zhangsan"
+                      role: "member"
+                    - id: 2
+                      username: "lisi"
+                      role: "member"
+                    - id: 3
+                      username: "wangwu"
+                      role: "member"
+                  created_at: "2026-02-10T08:44:13Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /projects/{id}:
+    get:
+      tags:
+        - 项目管理
+      summary: 获取项目详情
+      description: 根据ID获取项目详细信息
+      operationId: getProjectById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 项目ID
+      responses:
+        "200":
+          description: 成功获取项目详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "success"
+                data:
+                  id: 1
+                  title: "电商平台重构"
+                  description: "对现有电商平台进行技术重构"
+                  status: "in_progress"
+                  progress: 45.5
+                  is_archived: false
+                  start_date: "2026-01-15"
+                  end_date: "2026-04-15"
+                  created_by:
+                    id: 2
+                    username: "admin"
+                  members:
+                    - id: 1
+                      username: "zhangsan"
+                      role: "member"
+                      avatar: "..."
+                    - id: 2
+                      username: "lisi"
+                      role: "member"
+                      avatar: "..."
+                  task_stats:
+                    total: 10
+                    planning: 2
+                    pending: 3
+                    in_progress: 3
+                    completed: 2
+                    overdue: 1
+                  created_at: "2026-01-15T08:00:00Z"
+                  updated_at: "2026-02-09T10:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      tags:
+        - 项目管理
+      summary: 更新项目
+      description: 更新项目信息（仅限管理员）
+      operationId: updateProject
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectUpdateRequest"
+      responses:
+        "200":
+          description: 项目更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "项目更新成功"
+                data:
+                  id: 1
+                  title: "电商平台重构 v2"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags:
+        - 项目管理
+      summary: 硬删除项目
+      description: 硬删除已归档的项目（仅限超级管理员）
+      operationId: deleteProject
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: 项目已删除
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 204
+                message: "项目已删除"
+                data: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /projects/{id}/archive:
+    patch:
+      tags:
+        - 项目管理
+      summary: 归档项目
+      description: 归档项目（仅限管理员）
+      operationId: archiveProject
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 项目已归档
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "项目已归档"
+                data:
+                  id: 1
+                  is_archived: true
+                  archived_at: "2026-02-10T08:44:13Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /projects/{id}/progress:
+    get:
+      tags:
+        - 项目管理
+      summary: 获取项目进度统计
+      description: 获取项目的详细进度统计信息
+      operationId: getProjectProgress
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 成功获取进度统计
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "success"
+                data:
+                  project_id: 1
+                  project_title: "电商平台重构"
+                  overall_progress: 45.5
+                  main_tasks:
+                    total: 10
+                    completed: 4
+                    in_progress: 3
+                    pending: 2
+                    planning: 1
+                  member_progress:
+                    - user_id: 1
+                      username: "zhangsan"
+                      assigned_tasks: 5
+                      completed_tasks: 3
+                      completion_rate: 60.0
+                    - user_id: 2
+                      username: "lisi"
+                      assigned_tasks: 5
+                      completed_tasks: 1
+                      completion_rate: 20.0
+                  overdue_tasks:
+                    - id: 5
+                      title: "数据库设计"
+                      assignee: "lisi"
+                      end_date: "2026-02-05"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /projects/{id}/members:
+    put:
+      tags:
+        - 项目管理
+      summary: 管理项目成员
+      description: 覆盖式更新项目成员列表（仅限管理员）
+      operationId: updateProjectMembers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [member_ids]
+              properties:
+                member_ids:
+                  type: array
+                  items:
+                    type: integer
+                  minItems: 1
+            example:
+              member_ids: [1, 2, 3, 4]
+      responses:
+        "200":
+          description: 成员更新成功
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /projects/{id}/tasks:
+    get:
+      tags:
+        - 任务管理
+      summary: 获取任务列表
+      description: 获取项目下的任务列表，支持树形和扁平视图
+      operationId: getProjectTasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: view
+          in: query
+          description: 视图类型
+          schema:
+            type: string
+            enum: [tree, flat]
+            default: flat
+        - name: assignee
+          in: query
+          description: 负责人过滤
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: 状态过滤
+          schema:
+            type: string
+        - name: level
+          in: query
+          description: 层级过滤
+          schema:
+            type: integer
+        - name: search
+          in: query
+          description: 标题搜索
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功获取任务列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              examples:
+                扁平视图:
+                  value:
+                    code: 200
+                    message: "success"
+                    data:
+                      items:
+                        - id: 1
+                          title: "API设计"
+                          status: "in_progress"
+                          priority: "high"
+                          level: 1
+                          assignee:
+                            id: 1
+                            username: "zhangsan"
+                          start_date: "2026-02-01"
+                          end_date: "2026-02-10"
+                          normal_flag: "normal"
+                          can_view: true
+                          can_edit: true
+                        - id: 2
+                          title: "他人任务"
+                          status: "private"
+                          level: 1
+                          assignee:
+                            id: 2
+                            username: "lisi"
+                          can_view: false
+                          message: "该任务未分配给您，无权查看详情"
+                树形视图:
+                  value:
+                    code: 200
+                    message: "success"
+                    data:
+                      items:
+                        - id: 1
+                          title: "API设计"
+                          level: 1
+                          assignee:
+                            id: 1
+                            username: "zhangsan"
+                          children:
+                            - id: 3
+                              title: "用户模块API"
+                              level: 2
+                              parent_id: 1
+                              children:
+                                - id: 4
+                                  title: "登录接口"
+                                  level: 3
+                                  parent_id: 3
+                                  children: []
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    post:
+      tags:
+        - 任务管理
+      summary: 创建主任务
+      description: 在项目中创建主任务（仅限管理员）
+      operationId: createMainTask
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskCreateRequest"
+            example:
+              title: "数据库设计"
+              description: "设计系统数据库结构"
+              assignee_id: 2
+              priority: "high"
+              start_date: "2026-02-10"
+              end_date: "2026-02-15"
+      responses:
+        "201":
+          description: 任务创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 201
+                message: "任务创建成功"
+                data:
+                  id: 5
+                  title: "数据库设计"
+                  level: 1
+                  assignee:
+                    id: 2
+                    username: "lisi"
+                  status: "planning"
+                  priority: "high"
+                  start_date: "2026-02-10"
+                  end_date: "2026-02-15"
+                  created_at: "2026-02-10T08:44:13Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /tasks/{id}/subtasks:
+    post:
+      tags:
+        - 任务管理
+      summary: 创建子任务
+      description: 为指定任务创建子任务（仅限任务负责人）
+      operationId: createSubTask
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubTaskCreateRequest"
+      responses:
+        "201":
+          description: 子任务创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 201
+                message: "子任务创建成功"
+                data:
+                  id: 6
+                  title: "用户表设计"
+                  level: 2
+                  parent_id: 5
+                  path: "/5"
+                  assignee:
+                    id: 2
+                    username: "lisi"
+                  created_at: "2026-02-10T08:44:13Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: 业务逻辑错误
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: 3002
+                message: "任务层级超过限制(最多3层)"
+
+  /tasks/{id}:
+    get:
+      tags:
+        - 任务管理
+      summary: 获取任务详情
+      description: 根据ID获取任务详细信息
+      operationId: getTaskById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 成功获取任务详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              examples:
+                完整权限:
+                  value:
+                    code: 200
+                    message: "success"
+                    data:
+                      id: 1
+                      project_id: 1
+                      title: "API设计"
+                      description: "设计RESTful API接口"
+                      status: "in_progress"
+                      priority: "high"
+                      level: 1
+                      parent_id: null
+                      path: ""
+                      assignee:
+                        id: 1
+                        username: "zhangsan"
+                        avatar: "https://..."
+                      start_date: "2026-02-01"
+                      end_date: "2026-02-10"
+                      normal_flag: "normal"
+                      is_overdue_notified: false
+                      attachments:
+                        - id: 1
+                          file_name: "api_design.pdf"
+                          file_type: "application/pdf"
+                          file_size: 1024000
+                          url: "https://minio..."
+                          uploaded_by: 1
+                          created_at: "2026-02-05T10:00:00Z"
+                      subtask_count: 3
+                      created_at: "2026-01-20T08:00:00Z"
+                      updated_at: "2026-02-08T15:00:00Z"
+                脱敏视图:
+                  value:
+                    code: 200
+                    message: "success"
+                    data:
+                      id: 2
+                      title: "他人任务标题"
+                      status: "private"
+                      level: 1
+                      assignee: "🔒 私有任务"
+                      can_view: false
+                      message: "该任务未分配给您，无权查看详情"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      tags:
+        - 任务管理
+      summary: 更新任务
+      description: 更新任务信息（管理员或任务负责人）
+      operationId: updateTask
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpdateRequest"
+      responses:
+        "200":
+          description: 任务更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "任务更新成功"
+                data:
+                  id: 1
+                  title: "API设计 v2"
+                  status: "completed"
+                  updated_at: "2026-02-10T08:44:13Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags:
+        - 任务管理
+      summary: 删除任务
+      description: 删除任务（仅限超级管理员）
+      operationId: deleteTask
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: 任务已删除
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 204
+                message: "任务已删除"
+                data: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /tasks/{id}/history:
+    get:
+      tags:
+        - 任务管理
+      summary: 获取任务变更历史
+      description: 获取任务的字段变更历史记录
+      operationId: getTaskHistory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 成功获取变更历史
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "success"
+                data:
+                  task_id: 1
+                  histories:
+                    - id: 3
+                      changed_by:
+                        id: 1
+                        username: "zhangsan"
+                      field_name: "status"
+                      old_value: "in_progress"
+                      new_value: "completed"
+                      changed_at: "2026-02-10T08:44:13Z"
+                    - id: 2
+                      changed_by:
+                        id: 2
+                        username: "admin"
+                      field_name: "assignee_id"
+                      old_value: "3"
+                      new_value: "1"
+                      changed_at: "2026-02-05T10:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /projects/{id}/gantt:
+    get:
+      tags:
+        - 可视化数据
+      summary: 获取甘特图数据
+      description: 获取项目的甘特图数据
+      operationId: getGanttData
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: start_date
+          in: query
+          description: 开始日期范围
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          description: 结束日期范围
+          schema:
+            type: string
+            format: date
+        - name: view_mode
+          in: query
+          description: 视图模式
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: day
+      responses:
+        "200":
+          description: 成功获取甘特图数据
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "success"
+                data:
+                  project_id: 1
+                  view_mode: "day"
+                  date_range:
+                    start: "2026-02-01"
+                    end: "2026-02-28"
+                  tasks:
+                    - id: 1
+                      title: "需求分析"
+                      start: "2026-02-01"
+                      end: "2026-02-05"
+                      progress: 100
+                      status: "completed"
+                      assignee:
+                        id: 1
+                        username: "zhangsan"
+                        color: "#0D9488"
+                      level: 1
+                      dependencies: []
+                      children:
+                        - id: 3
+                          title: "用户调研"
+                          start: "2026-02-01"
+                          end: "2026-02-03"
+                          progress: 100
+                          level: 2
+                          children: []
+                    - id: 2
+                      title: "系统设计"
+                      start: "2026-02-06"
+                      end: "2026-02-15"
+                      progress: 60
+                      status: "in_progress"
+                      assignee:
+                        id: 2
+                        username: "lisi"
+                        color: "#0891B2"
+                      level: 1
+                      children: []
+                  members:
+                    - id: 1
+                      username: "zhangsan"
+                      color: "#0D9488"
+                    - id: 2
+                      username: "lisi"
+                      color: "#0891B2"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /projects/{id}/kanban:
+    get:
+      tags:
+        - 可视化数据
+      summary: 获取看板数据
+      description: 获取项目的看板数据
+      operationId: getKanbanData
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: assignee
+          in: query
+          description: 负责人过滤
+          schema:
+            type: string
+            enum: [me, all]
+      responses:
+        "200":
+          description: 成功获取看板数据
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "success"
+                data:
+                  project_id: 1
+                  columns:
+                    - id: "planning"
+                      title: "规划中"
+                      color: "#94A3B8"
+                      tasks:
+                        - id: 5
+                          title: "技术选型"
+                          priority: "high"
+                          assignee:
+                            id: 1
+                            username: "zhangsan"
+                          end_date: "2026-02-20"
+                          normal_flag: "normal"
+                    - id: "pending"
+                      title: "待处理"
+                      color: "#F59E0B"
+                      tasks: []
+                    - id: "in_progress"
+                      title: "进行中"
+                      color: "#0D9488"
+                      tasks: []
+                    - id: "completed"
+                      title: "已完成"
+                      color: "#10B981"
+                      tasks: []
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /team/members:
+    get:
+      tags:
+        - 成员管理
+      summary: 获取团队成员列表
+      description: 获取团队成员列表，支持角色过滤和搜索
+      operationId: getTeamMembers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: role
+          in: query
+          description: 角色过滤
+          schema:
+            type: string
+            enum: [super_admin, team_admin, member]
+        - name: search
+          in: query
+          description: 用户名搜索
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功获取成员列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "success"
+                data:
+                  items:
+                    - id: 1
+                      username: "admin"
+                      email: "admin@example.com"
+                      role: "team_admin"
+                      role_display: "团队管理员"
+                      avatar: "https://..."
+                      task_count: 10
+                      created_at: "2026-01-01T00:00:00Z"
+                    - id: 2
+                      username: "zhangsan"
+                      email: "zhangsan@example.com"
+                      role: "member"
+                      role_display: "团队成员"
+                      avatar: "https://..."
+                      task_count: 5
+                      created_at: "2026-01-15T08:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /team/invite:
+    post:
+      tags:
+        - 成员管理
+      summary: 邀请成员
+      description: 邀请用户加入团队（仅限管理员）
+      operationId: inviteMember
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteMemberRequest"
+            example:
+              username: "newuser"
+              role: "member"
+      responses:
+        "200":
+          description: 邀请成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                code: 200
+                message: "邀请成功"
+                data:
+                  user_id: 5
+                  username: "newuser"
+                  role: "member"
+                  invited_at: "2026-02-10T08:44:13Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: 404
+                message: "用户不存在"
+                errors:
+                  username: ["该用户名未注册，请先注册账号"]
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 使用JWT令牌进行认证
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 响应码
+        message:
+          type: string
+          description: 响应消息
+        data:
+          type: object
+          description: 响应数据
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 错误码
+        message:
+          type: string
+          description: 错误描述
+        errors:
+          type: object
+          description: 详细错误信息
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+    PaginatedResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  description: 数据列表
+                pagination:
+                  type: object
+                  properties:
+                    page:
+                      type: integer
+                      description: 当前页码
+                    page_size:
+                      type: integer
+                      description: 每页数量
+                    total:
+                      type: integer
+                      description: 总记录数
+                    total_pages:
+                      type: integer
+                      description: 总页数
+                    has_next:
+                      type: boolean
+                      description: 是否有下一页
+                    has_previous:
+                      type: boolean
+                      description: 是否有上一页
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          description: 用户名
+        password:
+          type: string
+          description: 密码
+          format: password
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          description: 刷新令牌
+
+    ProjectCreateRequest:
+      type: object
+      required: [title, member_ids]
+      properties:
+        title:
+          type: string
+          maxLength: 100
+          description: 项目标题
+        description:
+          type: string
+          description: 项目描述
+        status:
+          type: string
+          enum: [planning, pending, in_progress, completed]
+          default: planning
+          description: 项目状态
+        start_date:
+          type: string
+          format: date
+          description: 开始日期
+        end_date:
+          type: string
+          format: date
+          description: 结束日期
+        member_ids:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+          description: 成员ID列表
+
+    ProjectUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 100
+          description: 项目标题
+        description:
+          type: string
+          description: 项目描述
+        status:
+          type: string
+          enum: [planning, pending, in_progress, completed]
+          description: 项目状态
+        start_date:
+          type: string
+          format: date
+          description: 开始日期
+        end_date:
+          type: string
+          format: date
+          description: 结束日期
+
+    TaskCreateRequest:
+      type: object
+      required: [title, assignee_id]
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          description: 任务标题
+        description:
+          type: string
+          description: 任务描述
+        assignee_id:
+          type: integer
+          description: 负责人ID
+        status:
+          type: string
+          enum: [planning, pending, in_progress, completed]
+          default: planning
+          description: 任务状态
+        priority:
+          type: string
+          enum: [urgent, high, medium, low]
+          default: medium
+          description: 优先级
+        start_date:
+          type: string
+          format: date
+          description: 开始日期
+        end_date:
+          type: string
+          format: date
+          description: 结束日期
+
+    SubTaskCreateRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          description: 子任务标题
+        description:
+          type: string
+          description: 子任务描述
+        status:
+          type: string
+          enum: [planning, pending, in_progress, completed]
+          default: planning
+          description: 子任务状态
+        priority:
+          type: string
+          enum: [urgent, high, medium, low]
+          description: 优先级
+        start_date:
+          type: string
+          format: date
+          description: 开始日期
+        end_date:
+          type: string
+          format: date
+          description: 结束日期
+
+    TaskUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          description: 任务标题
+        description:
+          type: string
+          description: 任务描述
+        status:
+          type: string
+          enum: [planning, pending, in_progress, completed]
+          description: 任务状态
+        priority:
+          type: string
+          enum: [urgent, high, medium, low]
+          description: 优先级
+        assignee_id:
+          type: integer
+          description: 负责人ID
+        start_date:
+          type: string
+          format: date
+          description: 开始日期
+        end_date:
+          type: string
+          format: date
+          description: 结束日期
+
+    InviteMemberRequest:
+      type: object
+      required: [username]
+      properties:
+        username:
+          type: string
+          description: 用户名
+        role:
+          type: string
+          enum: [team_admin, member]
+          default: member
+          description: 角色
+
+  responses:
+    Unauthorized:
+      description: 未认证或Token过期
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: 401
+            message: "未授权访问"
+            errors: {}
+
+    Forbidden:
+      description: 无权限访问
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: 403
+            message: "无权限访问"
+            errors: {}
+
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: 404
+            message: "资源不存在"
+            errors: {}
+
+security:
+  - BearerAuth: []

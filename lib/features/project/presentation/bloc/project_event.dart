@@ -171,3 +171,110 @@ class ProjectDeleteRequested extends ProjectEvent {
   @override
   List<Object?> get props => [projectId];
 }
+
+// ==================== 项目任务事件 ====================
+
+/// 加载项目任务列表
+class ProjectTasksLoadRequested extends ProjectEvent {
+  final int projectId;
+  final String view; // 'tree' | 'flat'
+
+  const ProjectTasksLoadRequested({
+    required this.projectId,
+    this.view = 'tree',
+  });
+
+  @override
+  List<Object?> get props => [projectId, view];
+}
+
+/// 创建任务
+class ProjectTaskCreateRequested extends ProjectEvent {
+  final int projectId;
+  final String title;
+  final String? description;
+  final int assigneeId;
+  final String? status;
+  final String? priority;
+  final DateTime? startDate;
+  final DateTime? endDate;
+
+  const ProjectTaskCreateRequested({
+    required this.projectId,
+    required this.title,
+    this.description,
+    required this.assigneeId,
+    this.status = 'planning',
+    this.priority = 'medium',
+    this.startDate,
+    this.endDate,
+  });
+
+  @override
+  List<Object?> get props => [
+        projectId,
+        title,
+        description,
+        assigneeId,
+        status,
+        priority,
+        startDate,
+        endDate,
+      ];
+}
+
+/// 创建子任务
+class ProjectSubTaskCreateRequested extends ProjectEvent {
+  final int parentTaskId;
+  final String title;
+  final String? description;
+  final String? status;
+  final String? priority;
+  final DateTime? startDate;
+  final DateTime? endDate;
+
+  const ProjectSubTaskCreateRequested({
+    required this.parentTaskId,
+    required this.title,
+    this.description,
+    this.status = 'planning',
+    this.priority = 'medium',
+    this.startDate,
+    this.endDate,
+  });
+
+  @override
+  List<Object?> get props => [
+        parentTaskId,
+        title,
+        description,
+        status,
+        priority,
+        startDate,
+        endDate,
+      ];
+}
+
+/// 更新任务状态
+class ProjectTaskStatusUpdateRequested extends ProjectEvent {
+  final int taskId;
+  final String newStatus;
+
+  const ProjectTaskStatusUpdateRequested({
+    required this.taskId,
+    required this.newStatus,
+  });
+
+  @override
+  List<Object?> get props => [taskId, newStatus];
+}
+
+/// 删除任务
+class ProjectTaskDeleteRequested extends ProjectEvent {
+  final int taskId;
+
+  const ProjectTaskDeleteRequested(this.taskId);
+
+  @override
+  List<Object?> get props => [taskId];
+}

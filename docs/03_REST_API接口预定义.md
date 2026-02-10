@@ -1659,4 +1659,262 @@ wss://api.teamsync.com/ws/notifications/?token=<access_token>
 
 ---
 
-*文档版本: v1.0 | 最后更新: 2026-02-10*
+## 补充接口定义（前端实现补充）
+
+### 4.x 任务管理模块补充接口
+
+以下接口在文档第4节已有概述，此处补充详细定义：
+
+#### 4.8 获取项目任务列表（树形/扁平）
+
+**GET** `/projects/{id}/tasks/`
+
+#### 查询参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| view | string | 否 | 视图类型: `tree`(树形，默认), `flat`(扁平) |
+| status | string | 否 | 状态过滤: planning, pending, in_progress, completed |
+| assignee | string | 否 | 负责人过滤: `me`(当前用户), `all`(全部) |
+| search | string | 否 | 标题搜索关键词 |
+
+#### 响应示例 - 树形视图（view=tree）
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "project_id": 1,
+        "title": "API接口开发模块",
+        "description": "完成用户管理模块的API接口开发",
+        "assignee_id": 2,
+        "assignee_name": "zhangsan",
+        "assignee_avatar": null,
+        "status": "in_progress",
+        "priority": "high",
+        "level": 1,
+        "parent_id": null,
+        "path": "",
+        "start_date": "2026-02-10",
+        "end_date": "2026-02-20",
+        "created_at": "2026-02-10T08:00:00Z",
+        "updated_at": "2026-02-10T08:00:00Z",
+        "subtask_count": 3,
+        "completed_subtask_count": 1,
+        "children": [
+          {
+            "id": 2,
+            "project_id": 1,
+            "title": "设计API接口文档",
+            "assignee_id": 2,
+            "assignee_name": "zhangsan",
+            "status": "completed",
+            "priority": "high",
+            "level": 2,
+            "parent_id": 1,
+            "path": "/1",
+            "children": [],
+            "subtask_count": 0,
+            "completed_subtask_count": 0
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**说明**：
+- `level`: 任务层级，1=主任务，2=子任务，3=孙任务
+- `path`: 路径枚举，如 `/1/12` 表示该任务的上级路径
+- `children`: 子任务列表（仅在树形视图且 expand=true 时返回）
+- `subtask_count`: 子任务总数
+- `completed_subtask_count`: 已完成子任务数
+
+---
+
+#### 4.9 创建任务（主任务）
+
+**POST** `/projects/{id}/tasks/`
+
+> 权限：Super Admin, Team Admin
+
+#### 请求参数
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| title | string | 是 | 任务标题，最大200字符 |
+| description | string | 否 | 任务描述 |
+| assignee_id | integer | 是 | 负责人ID |
+| status | string | 否 | 状态，默认 planning |
+| priority | string | 否 | 优先级: urgent, high, medium, low，默认 medium |
+| start_date | date | 否 | 开始日期，格式 YYYY-MM-DD |
+| end_date | date | 否 | 结束日期，格式 YYYY-MM-DD |
+
+#### 请求示例
+
+```json
+{
+  "title": "数据库设计",
+  "description": "设计系统数据库结构",
+  "assignee_id": 2,
+  "priority": "high",
+  "start_date": "2026-02-10",
+  "end_date": "2026-02-15"
+}
+```
+
+#### 响应示例
+
+```json
+{
+  "code": 201,
+  "message": "任务创建成功",
+  "data": {
+    "id": 5,
+    "project_id": 1,
+    "title": "数据库设计",
+    "description": "设计系统数据库结构",
+    "assignee_id": 2,
+    "assignee_name": "zhangsan",
+    "status": "planning",
+    "priority": "high",
+    "level": 1,
+    "parent_id": null,
+    "path": "",
+    "start_date": "2026-02-10",
+    "end_date": "2026-02-15",
+    "created_at": "2026-02-10T08:44:13Z",
+    "updated_at": "2026-02-10T08:44:13Z",
+    "subtask_count": 0,
+    "completed_subtask_count": 0
+  }
+}
+```
+
+---
+
+#### 4.10 创建子任务
+
+**POST** `/tasks/{id}/subtasks/`
+
+> 权限：任务负责人 (parent_task.assignee_id == current_user.id)
+> 限制：父任务 level < 3
+
+#### 请求参数
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| title | string | 是 | 任务标题 |
+| description | string | 否 | 任务描述 |
+| status | string | 否 | 状态，默认 planning |
+| priority | string | 否 | 优先级 |
+| start_date | date | 否 | 开始日期 |
+| end_date | date | 否 | 结束日期 |
+
+> 注意：子任务自动继承父任务的 assignee_id
+
+#### 响应示例
+
+```json
+{
+  "code": 201,
+  "message": "子任务创建成功",
+  "data": {
+    "id": 6,
+    "project_id": 1,
+    "title": "用户表设计",
+    "level": 2,
+    "parent_id": 5,
+    "path": "/5",
+    "assignee_id": 2,
+    "assignee_name": "zhangsan",
+    "status": "planning",
+    "priority": "medium",
+    "created_at": "2026-02-10T08:44:13Z",
+    "subtask_count": 0,
+    "completed_subtask_count": 0
+  }
+}
+```
+
+#### 错误响应
+
+```json
+{
+  "code": 422,
+  "message": "已达到最大层级深度（3层）",
+  "errors": {
+    "level": ["父任务层级为3，无法创建子任务"]
+  }
+}
+```
+
+---
+
+#### 4.11 更新任务状态
+
+**PATCH** `/tasks/{id}/status/`
+
+> 权限：管理员 或 任务负责人
+
+#### 请求参数
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| status | string | 是 | 新状态: planning, pending, in_progress, completed |
+
+#### 请求示例
+
+```json
+{
+  "status": "completed"
+}
+```
+
+#### 响应示例
+
+```json
+{
+  "code": 200,
+  "message": "状态更新成功",
+  "data": {
+    "id": 1,
+    "status": "completed",
+    "updated_at": "2026-02-10T08:44:13Z"
+  }
+}
+```
+
+---
+
+#### 4.12 批量获取任务进度
+
+**GET** `/projects/{id}/tasks/progress/`
+
+> 用于项目详情页展示任务完成情况
+
+#### 响应示例
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "total": 10,
+    "planning": 2,
+    "pending": 3,
+    "in_progress": 3,
+    "completed": 2,
+    "overdue": 1
+  }
+}
+```
+
+---
+
+*文档版本: v1.0 | 最后更新: 2026-02-11*

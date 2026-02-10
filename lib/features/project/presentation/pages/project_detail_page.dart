@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../config/routes.dart';
 import '../../../../config/theme.dart';
+import '../../../task/presentation/widgets/create_task_dialog.dart';
+import '../../../task/presentation/widgets/task_list_widget.dart';
 import '../bloc/project_bloc.dart';
 import '../bloc/project_event.dart';
 import '../bloc/project_state.dart';
@@ -21,11 +23,21 @@ class ProjectDetailPage extends StatefulWidget {
   State<ProjectDetailPage> createState() => _ProjectDetailPageState();
 }
 
-class _ProjectDetailPageState extends State<ProjectDetailPage> {
+class _ProjectDetailPageState extends State<ProjectDetailPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 4, vsync: this);
     _loadProjectDetail();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
@@ -49,7 +61,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 返回按钮 + 标题
+              // 页面头部
               _buildHeader(state),
               const SizedBox(height: 24),
               // 页面内容
@@ -81,6 +93,22 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           ),
         ),
         if (state is ProjectDetailLoadSuccess) ...[
+          // 创建任务按钮
+          ElevatedButton.icon(
+            onPressed: () => _showCreateTaskDialog(context, state.project),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('创建任务'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textInverse,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // 更多操作
           IconButton(
             onPressed: () => _showProjectActions(state.project),
             icon: const Icon(Icons.more_vert),
@@ -103,11 +131,18 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           children: [
             Icon(Icons.error_outline, size: 48, color: AppColors.error),
             const SizedBox(height: 16),
-            Text(state.message, style: AppTypography.body.copyWith(color: AppColors.textSecondary)),
+            Text(
+              state.message,
+              style: AppTypography.body.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
-                context.read<ProjectBloc>().add(ProjectDetailRequested(widget.projectId));
+                context.read<ProjectBloc>().add(
+                      ProjectDetailRequested(widget.projectId),
+                    );
               },
               child: const Text('重新加载'),
             ),
@@ -118,29 +153,24 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
 
     if (state is ProjectDetailLoadSuccess) {
       final project = state.project;
-      
+
       return RefreshIndicator(
         onRefresh: () async {
-          context.read<ProjectBloc>().add(ProjectDetailRequested(widget.projectId));
+          context.read<ProjectBloc>().add(
+                ProjectDetailRequested(widget.projectId),
+              );
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 项目基本信息卡片
+              // 项目信息卡片
               _buildProjectInfoCard(project),
               const SizedBox(height: 24),
-              // 任务统计卡片
-              if (project.taskStats != null)
-                _buildTaskStatsCard(project.taskStats!),
+              // 任务视图 Tab
+              _buildTaskSection(state),
               const SizedBox(height: 24),
-              // 成员列表
-              _buildMembersCard(project),
-              const SizedBox(height: 24),
-              // 项目时间线
-              _buildTimelineCard(project),
-              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -150,7 +180,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     return const Center(child: CircularProgressIndicator());
   }
 
-  /// 构建项目基本信息卡片
+  /// 构建项目信息卡片
   Widget _buildProjectInfoCard(dynamic project) {
     return Container(
       padding: AppSpacing.cardPadding,
@@ -168,7 +198,10 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               const Spacer(),
               if (project.isArchived)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.textDisabled.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
@@ -176,11 +209,17 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.archive_outlined, size: 14, color: AppColors.textDisabled),
+                      Icon(
+                        Icons.archive_outlined,
+                        size: 14,
+                        color: AppColors.textDisabled,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '已归档',
-                        style: AppTypography.label.copyWith(color: AppColors.textDisabled),
+                        style: AppTypography.label.copyWith(
+                          color: AppColors.textDisabled,
+                        ),
                       ),
                     ],
                   ),
@@ -192,9 +231,29 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           const SizedBox(height: 8),
           Text(
             project.description,
-            style: AppTypography.bodyLarge.copyWith(color: AppColors.textSecondary),
+            style: AppTypography.bodyLarge.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+          // 成员和统计信息
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 成员
+              Expanded(
+                flex: 2,
+                child: _buildMembersPreview(project.members),
+              ),
+              const SizedBox(width: 24),
+              // 任务统计
+              Expanded(
+                flex: 3,
+                child: _buildTaskStatsPreview(project.taskStats),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           // 进度条
           Row(
             children: [
@@ -205,7 +264,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                     value: project.progress / 100,
                     backgroundColor: AppColors.border,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      project.isCompleted ? AppColors.success : AppColors.primary,
+                      project.isCompleted
+                          ? AppColors.success
+                          : AppColors.primary,
                     ),
                     minHeight: 10,
                   ),
@@ -215,7 +276,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               Text(
                 '${project.progress.toStringAsFixed(0)}%',
                 style: AppTypography.h4.copyWith(
-                  color: project.isCompleted ? AppColors.success : AppColors.primary,
+                  color: project.isCompleted
+                      ? AppColors.success
+                      : AppColors.primary,
                 ),
               ),
             ],
@@ -225,213 +288,239 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     );
   }
 
-  /// 构建任务统计卡片
-  Widget _buildTaskStatsCard(dynamic taskStats) {
-    return Container(
-      padding: AppSpacing.cardPadding,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: AppShadows.card,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('任务统计', style: AppTypography.h4),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _buildStatItem('规划中', taskStats.planning, AppColors.statusPlanning),
-              _buildStatDivider(),
-              _buildStatItem('待处理', taskStats.pending, AppColors.statusPending),
-              _buildStatDivider(),
-              _buildStatItem('进行中', taskStats.inProgress, AppColors.statusInProgress),
-              _buildStatDivider(),
-              _buildStatItem('已完成', taskStats.completed, AppColors.statusCompleted),
-            ],
+  /// 构建成员预览
+  Widget _buildMembersPreview(List<dynamic> members) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '项目成员',
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.textSecondary,
           ),
-          if (taskStats.overdue > 0) ...[
-            const SizedBox(height: 16),
-            const Divider(height: 1),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Icon(Icons.warning_amber, color: AppColors.error, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  '逾期任务: ${taskStats.overdue} 个',
-                  style: AppTypography.body.copyWith(color: AppColors.error),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, int value, Color color) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value.toString(),
-            style: AppTypography.h3.copyWith(color: color),
-          ),
-          const SizedBox(height: 4),
-          Text(label, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatDivider() {
-    return Container(
-      width: 1,
-      height: 40,
-      color: AppColors.border,
-    );
-  }
-
-  /// 构建成员卡片
-  Widget _buildMembersCard(dynamic project) {
-    return Container(
-      padding: AppSpacing.cardPadding,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: AppShadows.card,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('项目成员', style: AppTypography.h4),
-              TextButton(
-                onPressed: () {
-                  // TODO: 管理成员
-                },
-                child: const Text('管理成员'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: project.members.map<Widget>((member) {
-              return Chip(
-                avatar: CircleAvatar(
-                  backgroundColor: AppColors.primary,
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ...members.take(5).map<Widget>((member) {
+              return Tooltip(
+                message: member.username,
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: AppColors.primaryLight,
                   child: Text(
-                    member.username[0],
+                    member.username[0].toUpperCase(),
                     style: const TextStyle(
-                      color: AppColors.textInverse,
+                      color: AppColors.primary,
                       fontSize: 12,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                label: Text(member.username),
-                backgroundColor: AppColors.background,
               );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建时间线卡片
-  Widget _buildTimelineCard(dynamic project) {
-    return Container(
-      padding: AppSpacing.cardPadding,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: AppShadows.card,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('项目时间线', style: AppTypography.h4),
-          const SizedBox(height: 16),
-          _buildTimelineItem(
-            icon: Icons.play_circle_outline,
-            title: '开始日期',
-            date: project.startDate ?? '未设置',
-            color: AppColors.primary,
-          ),
-          _buildTimelineConnector(),
-          _buildTimelineItem(
-            icon: Icons.flag_outlined,
-            title: '截止日期',
-            date: project.endDate ?? '未设置',
-            color: AppColors.warning,
-          ),
-          if (project.isArchived) ...[
-            _buildTimelineConnector(),
-            _buildTimelineItem(
-              icon: Icons.archive_outlined,
-              title: '归档日期',
-              date: project.archivedAt?.substring(0, 10) ?? '未知',
-              color: AppColors.textDisabled,
-            ),
+            }),
+            if (members.length > 5)
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: AppColors.background,
+                child: Text(
+                  '+${members.length - 5}',
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTimelineItem({
-    required IconData icon,
-    required String title,
-    required String date,
-    required Color color,
-  }) {
-    return Row(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: AppTypography.body.copyWith(color: AppColors.textSecondary)),
-              Text(date, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
-            ],
-          ),
         ),
       ],
     );
   }
 
-  Widget _buildTimelineConnector() {
+  /// 构建任务统计预览
+  Widget _buildTaskStatsPreview(dynamic taskStats) {
+    if (taskStats == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '任务统计',
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _buildMiniStat('规划中', taskStats.planning, AppColors.statusPlanning),
+            _buildMiniStat('待处理', taskStats.pending, AppColors.statusPending),
+            _buildMiniStat('进行中', taskStats.inProgress, AppColors.statusInProgress),
+            _buildMiniStat('已完成', taskStats.completed, AppColors.statusCompleted),
+          ],
+        ),
+        if (taskStats.overdue > 0) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.warning_amber, color: AppColors.error, size: 16),
+              const SizedBox(width: 4),
+              Text(
+                '逾期 ${taskStats.overdue} 个',
+                style: AppTypography.caption.copyWith(color: AppColors.error),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMiniStat(String label, int value, Color color) {
+    return Expanded(
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '$label $value',
+            style: AppTypography.caption.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 构建任务区域（Tab切换）
+  Widget _buildTaskSection(ProjectDetailLoadSuccess state) {
     return Container(
-      margin: const EdgeInsets.only(left: 19),
-      width: 2,
-      height: 30,
-      color: AppColors.border,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Tab 标题栏
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('任务管理', style: AppTypography.h4),
+                // 视图切换标签
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  child: TabBar(
+                    controller: _tabController,
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.start,
+                    indicator: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                    ),
+                    labelColor: AppColors.textInverse,
+                    unselectedLabelColor: AppColors.textSecondary,
+                    labelStyle: AppTypography.bodySmall.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                    dividerColor: Colors.transparent,
+                    padding: const EdgeInsets.all(4),
+                    tabs: const [
+                      Tab(text: '列表'),
+                      Tab(text: '看板'),
+                      Tab(text: '甘特图'),
+                      Tab(text: '日历'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Tab 内容
+          SizedBox(
+            height: 600, // 固定高度
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // 列表视图
+                _buildListView(state),
+                // 看板视图（预留）
+                _buildPlaceholderView('看板视图', Icons.view_kanban),
+                // 甘特图视图（预留）
+                _buildPlaceholderView('甘特图视图', Icons.timeline),
+                // 日历视图（预留）
+                _buildPlaceholderView('日历视图', Icons.calendar_month),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 构建列表视图
+  Widget _buildListView(ProjectDetailLoadSuccess state) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: TaskListWidget(
+        tasks: state.tasks,
+        projectId: state.project.id,
+        isLoading: state.tasksLoading,
+        onCreateTask: () => _showCreateTaskDialog(context, state.project),
+      ),
+    );
+  }
+
+  /// 构建占位视图
+  Widget _buildPlaceholderView(String title, IconData icon) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 64, color: AppColors.textDisabled),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: AppTypography.bodyLarge.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '功能开发中...',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textDisabled,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   /// 构建状态标签
   Widget _buildStatusBadge(String status) {
-    final statusConfig = _getStatusConfig(status);
+    final config = _getStatusConfig(status);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: statusConfig.backgroundColor,
+        color: config.backgroundColor,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -441,21 +530,138 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
             width: 8,
             height: 8,
             decoration: BoxDecoration(
-              color: statusConfig.color,
+              color: config.color,
               shape: BoxShape.circle,
             ),
           ),
           const SizedBox(width: 8),
           Text(
-            statusConfig.label,
-            style: AppTypography.label.copyWith(color: statusConfig.color),
+            config.label,
+            style: AppTypography.label.copyWith(color: config.color),
           ),
         ],
       ),
     );
   }
 
-  /// 获取状态配置
+  void _showCreateTaskDialog(BuildContext context, dynamic project) {
+    showDialog(
+      context: context,
+      builder: (context) => CreateTaskDialog(
+        projectId: project.id,
+        members: project.members,
+      ),
+    );
+  }
+
+  void _showProjectActions(dynamic project) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('编辑项目'),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+            if (!project.isArchived)
+              ListTile(
+                leading: const Icon(Icons.archive_outlined),
+                title: const Text('归档项目'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showArchiveConfirm(project);
+                },
+              ),
+            if (project.isArchived)
+              ListTile(
+                leading: const Icon(Icons.delete_outline,
+                    color: AppColors.error),
+                title: const Text('删除项目',
+                    style: TextStyle(color: AppColors.error)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showDeleteConfirm(project);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showArchiveConfirm(dynamic project) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('归档项目', style: AppTypography.h4),
+        content: Text('确定要归档项目"${project.title}"吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.read<ProjectBloc>().add(
+                    ProjectArchiveRequested(project.id),
+                  );
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('项目"${project.title}"已归档')),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+            ),
+            child: const Text('归档'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirm(dynamic project) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('删除项目', style: AppTypography.h4),
+        content: Text('确定要删除项目"${project.title}"吗？此操作不可恢复！'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.read<ProjectBloc>().add(
+                    ProjectDeleteRequested(project.id),
+                  );
+              context.go(AppRoutes.projects);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('项目"${project.title}"已删除'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.textInverse,
+            ),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+  }
+
   _StatusConfig _getStatusConfig(String status) {
     switch (status) {
       case 'planning':
@@ -490,111 +696,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         );
     }
   }
-
-  /// 显示项目操作菜单
-  void _showProjectActions(dynamic project) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('编辑项目'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: 编辑项目
-              },
-            ),
-            if (!project.isArchived)
-              ListTile(
-                leading: const Icon(Icons.archive_outlined),
-                title: const Text('归档项目'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showArchiveConfirm(project);
-                },
-              ),
-            if (project.isArchived)
-              ListTile(
-                leading: const Icon(Icons.delete_outline, color: AppColors.error),
-                title: const Text('删除项目', style: TextStyle(color: AppColors.error)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showDeleteConfirm(project);
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 显示归档确认
-  void _showArchiveConfirm(dynamic project) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('归档项目', style: AppTypography.h4),
-        content: Text('确定要归档项目"${project.title}"吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context.read<ProjectBloc>().add(ProjectArchiveRequested(project.id));
-              context.read<ProjectBloc>().add(ProjectDetailRequested(widget.projectId));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('项目"${project.title}"已归档')),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
-            child: const Text('归档'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 显示删除确认
-  void _showDeleteConfirm(dynamic project) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('删除项目', style: AppTypography.h4),
-        content: Text('确定要删除项目"${project.title}"吗？此操作不可恢复！'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context.read<ProjectBloc>().add(ProjectDeleteRequested(project.id));
-              context.go(AppRoutes.projects);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('项目"${project.title}"已删除'),
-                  backgroundColor: AppColors.error,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-/// 状态配置
 class _StatusConfig {
   final String label;
   final Color color;

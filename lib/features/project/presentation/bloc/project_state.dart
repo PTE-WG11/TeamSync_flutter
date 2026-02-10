@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../domain/entities/project.dart';
+import '../../../task/domain/entities/task.dart';
 
 /// 项目状态基类
 abstract class ProjectState extends Equatable {
@@ -78,11 +79,29 @@ class ProjectDetailLoadInProgress extends ProjectState {}
 /// 项目详情加载成功
 class ProjectDetailLoadSuccess extends ProjectState {
   final Project project;
+  final List<Task> tasks;
+  final bool tasksLoading;
 
-  const ProjectDetailLoadSuccess(this.project);
+  const ProjectDetailLoadSuccess(
+    this.project, {
+    this.tasks = const [],
+    this.tasksLoading = false,
+  });
+
+  ProjectDetailLoadSuccess copyWith({
+    Project? project,
+    List<Task>? tasks,
+    bool? tasksLoading,
+  }) {
+    return ProjectDetailLoadSuccess(
+      project ?? this.project,
+      tasks: tasks ?? this.tasks,
+      tasksLoading: tasksLoading ?? this.tasksLoading,
+    );
+  }
 
   @override
-  List<Object?> get props => [project];
+  List<Object?> get props => [project, tasks, tasksLoading];
 }
 
 /// 项目详情加载失败

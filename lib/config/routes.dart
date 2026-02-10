@@ -12,6 +12,7 @@ import '../features/dashboard/presentation/pages/member_dashboard_page.dart';
 import '../features/project/presentation/bloc/project_bloc.dart';
 import '../features/project/presentation/pages/project_detail_page.dart';
 import '../features/project/presentation/pages/project_list_page.dart';
+import '../features/team/presentation/pages/team_members_page.dart';
 import '../shared/widgets/layout/main_layout.dart';
 import 'theme.dart';
 
@@ -156,13 +157,25 @@ class AppRoutes {
                 child: PlaceholderPage(title: '日历视图'),
               ),
             ),
-            // 成员管理
+            // 成员管理（仅管理员可访问）
             GoRoute(
               path: members,
               name: 'members',
-              pageBuilder: (context, state) => const NoTransitionPage(
-                child: PlaceholderPage(title: '成员管理'),
-              ),
+              pageBuilder: (context, state) {
+                final authState = context.read<AuthBloc>().state;
+                final isAdmin = authState is AuthAuthenticated && authState.isAdmin;
+                
+                if (!isAdmin) {
+                  // 非管理员重定向到首页
+                  return const NoTransitionPage(
+                    child: ForbiddenPage(),
+                  );
+                }
+                
+                return const NoTransitionPage(
+                  child: TeamMembersPage(),
+                );
+              },
             ),
             // 设置
             GoRoute(
@@ -299,6 +312,52 @@ class ErrorPage extends StatelessWidget {
               child: const Text('返回首页'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 无权限页面
+class ForbiddenPage extends StatelessWidget {
+  const ForbiddenPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.block,
+                size: 64,
+                color: AppColors.error.withOpacity(0.5),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                '无访问权限',
+                style: AppTypography.h2,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '您没有权限访问此页面，请联系团队管理员',
+                style: AppTypography.body.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton(
+                onPressed: () => context.go(AppRoutes.home),
+                child: const Text('返回首页'),
+              ),
+            ],
+          ),
         ),
       ),
     );

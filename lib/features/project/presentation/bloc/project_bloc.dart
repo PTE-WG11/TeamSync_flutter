@@ -2,16 +2,22 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../data/repositories/mock_project_repository.dart';
 import '../../domain/entities/project.dart';
+import '../../../task/data/repositories/mock_task_repository.dart';
+import '../../../task/domain/entities/task.dart';
 import 'project_event.dart';
 import 'project_state.dart';
 
 /// 项目 BLoC
 class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
   final MockProjectRepository _repository;
+  final MockTaskRepository _taskRepository;
   static const int _pageSize = 20;
 
-  ProjectBloc({MockProjectRepository? repository})
-      : _repository = repository ?? MockProjectRepository(),
+  ProjectBloc({
+    MockProjectRepository? repository,
+    MockTaskRepository? taskRepository,
+  })  : _repository = repository ?? MockProjectRepository(),
+        _taskRepository = taskRepository ?? MockTaskRepository(),
         super(ProjectInitial()) {
     on<ProjectsLoadRequested>(_onProjectsLoadRequested);
     on<ProjectsRefreshRequested>(_onProjectsRefreshRequested);
@@ -26,6 +32,11 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
     on<ProjectMembersUpdateRequested>(_onProjectMembersUpdateRequested);
     on<ProjectArchiveRequested>(_onProjectArchiveRequested);
     on<ProjectDeleteRequested>(_onProjectDeleteRequested);
+    on<ProjectTasksLoadRequested>(_onProjectTasksLoadRequested);
+    on<ProjectTaskCreateRequested>(_onProjectTaskCreateRequested);
+    on<ProjectSubTaskCreateRequested>(_onProjectSubTaskCreateRequested);
+    on<ProjectTaskStatusUpdateRequested>(_onProjectTaskStatusUpdateRequested);
+    on<ProjectTaskDeleteRequested>(_onProjectTaskDeleteRequested);
   }
 
   // ==================== 项目列表处理 ====================
@@ -191,7 +202,9 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
       final project = await _repository.getProjectById(event.projectId);
 
       if (project != null) {
-        emit(ProjectDetailLoadSuccess(project));
+        // 加载任务列表
+        final tasks = await _taskRepository.getProjectTasks(event.projectId);
+        emit(ProjectDetailLoadSuccess(project, tasks: tasks));
       } else {
         emit(ProjectDetailLoadFailure(message: '项目不存在'));
       }
@@ -337,6 +350,123 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
       }
     } catch (e) {
       emit(ProjectDeleteFailure(message: '删除项目失败: $e'));
+    }
+  }
+
+  // ==================== 项目任务处理 ====================
+
+  Future<void> _onProjectTasksLoadRequested(
+    ProjectTasksLoadRequested event,
+    Emitter<ProjectState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is ProjectDetailLoadSuccess) {
+      emit(currentState.copyWith(tasksLoading: true));
+    }
+
+    try {
+      final tasks = await _taskRepository.getProjectTasks(
+        event.projectId,
+        view: event.view,
+      );
+
+      if (state is ProjectDetailLoadSuccess) {
+        final detailState = state as ProjectDetailLoadSuccess;
+        emit(detailState.copyWith(
+          tasks: tasks,
+          tasksLoading: false,
+        ));
+      }
+    } catch (e) {
+      if (state is ProjectDetailLoadSuccess) {
+        final detailState = state as ProjectDetailLoadSuccess;
+        emit(detailState.copyWith(tasksLoading: false));
+      }
+    }
+  }
+
+  Future<void> _onProjectTaskCreateRequested(
+    ProjectTaskCreateRequested event,
+    Emitter<ProjectState> emit,
+  ) async {
+    try {
+      final request = CreateTaskRequest(
+        title: event.title,
+        description: event.description,
+        assigneeId: event.assigneeId,
+        status: event.status,
+        priority: event.priority,
+        startDate: event.startDate,
+        endDate: event.endDate,
+      );
+
+      await _taskRepository.createTask(event.projectId, request);
+
+      // 刷新任务列表
+      add(ProjectTasksLoadRequested(projectId: event.projectId));
+    } catch (e) {
+      // 错误处理
+    }
+  }
+
+  Future<void> _onProjectSubTaskCreateRequested(
+    ProjectSubTaskCreateRequested event,
+    Emitter<ProjectState> emit,
+  ) async {
+    try {
+      final request = CreateSubTaskRequest(
+        title: event.title,
+        description: event.description,
+        status: event.status,
+        priority: event.priority,
+        startDate: event.startDate,
+        endDate: event.endDate,
+      );
+
+      await _taskRepository.createSubTask(event.parentTaskId, request);
+
+      // 刷新任务列表
+      if (state is ProjectDetailLoadSuccess) {
+        final detailState = state as ProjectDetailLoadSuccess;
+        add(ProjectTasksLoadRequested(projectId: detailState.project.id));
+      }
+    } catch (e) {
+      // 错误处理
+    }
+  }
+
+  Future<void> _onProjectTaskStatusUpdateRequested(
+    ProjectTaskStatusUpdateRequested event,
+    Emitter<ProjectState> emit,
+  ) async {
+    try {
+      final request = UpdateTaskRequest(status: event.newStatus);
+      await _taskRepository.updateTask(event.taskId, request);
+
+      // 刷新任务列表
+      if (state is ProjectDetailLoadSuccess) {
+        final detailState = state as ProjectDetailLoadSuccess;
+        add(ProjectTasksLoadRequested(projectId: detailState.project.id));
+      }
+    } catch (e) {
+      // 错误处理
+    }
+  }
+
+  Future<void> _onProjectTaskDeleteRequested(
+    ProjectTaskDeleteRequested event,
+    Emitter<ProjectState> emit,
+  ) async {
+    try {
+      await _taskRepository.deleteTask(event.taskId);
+
+      // 刷新任务列表
+      if (state is ProjectDetailLoadSuccess) {
+        final detailState = state as ProjectDetailLoadSuccess;
+        add(ProjectTasksLoadRequested(projectId: detailState.project.id));
+      }
+    } catch (e) {
+      // 错误处理
     }
   }
 }
