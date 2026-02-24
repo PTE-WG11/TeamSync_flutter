@@ -508,18 +508,56 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
     ProjectTaskStatusUpdateRequested event,
     Emitter<ProjectState> emit,
   ) async {
-    try {
-      final request = UpdateTaskRequest(status: event.newStatus);
-      await _taskRepository.updateTask(event.taskId, request);
-
-      // 刷新任务列表
-      if (state is ProjectDetailLoadSuccess) {
-        final detailState = state as ProjectDetailLoadSuccess;
-        add(ProjectTasksLoadRequested(projectId: detailState.project.id));
+    final currentState = state;
+    if (currentState is ProjectDetailLoadSuccess) {
+      // 1. 乐观更新：先在本地递归更新状态
+      final updatedTasks = _updateTaskStatusOptimistically(
+        currentState.tasks, 
+        event.taskId, 
+        event.newStatus
+      );
+      
+      // 立即发送新状态到 UI，不等待后端
+      emit(currentState.copyWith(tasks: updatedTasks));
+      
+      try {
+        // 2. 后台静默发送请求
+        final request = UpdateTaskRequest(status: event.newStatus);
+        await _taskRepository.updateTask(event.taskId, request);
+        // 成功后不做任何 UI 刷新操作，因为我们已经乐观更新了
+      } catch (e) {
+        // 3. 仅在失败时回滚：重新加载列表
+        // 或者发送一个 SnackBar 通知用户失败（这里 Bloc 只能通过状态通知）
+        add(ProjectTasksLoadRequested(projectId: currentState.project.id));
       }
-    } catch (e) {
-      // 错误处理
     }
+  }
+
+  List<Task> _updateTaskStatusOptimistically(
+    List<Task> tasks, 
+    int targetTaskId, 
+    String newStatus
+  ) {
+    List<Task> newTasks = [];
+    for (var task in tasks) {
+      if (task.id == targetTaskId) {
+        // 找到目标任务，更新状态
+        newTasks.add(task.copyWith(status: newStatus));
+      } else if (task.children.isNotEmpty) {
+        // 递归检查子任务
+        final updatedChildren = _updateTaskStatusOptimistically(
+          task.children, 
+          targetTaskId, 
+          newStatus
+        );
+        // 如果子任务列表有变化（引用不同），说明在子任务中找到了并更新了
+        // 这里为了简单，总是创建新对象，或者你可以加判断
+        newTasks.add(task.copyWith(children: updatedChildren));
+      } else {
+        newTasks.add(task);
+      }
+    }
+    return newTasks;
   }
 
   Future<void> _onProjectTaskUpdateRequested(

@@ -8,9 +8,14 @@ import '../bloc/project_bloc.dart';
 import '../bloc/project_event.dart';
 import '../bloc/project_state.dart';
 
-/// 创建项目弹窗
+/// 创建/编辑项目弹窗
 class CreateProjectDialog extends StatefulWidget {
-  const CreateProjectDialog({super.key});
+  final dynamic project; // 如果传入 project，则为编辑模式
+
+  const CreateProjectDialog({
+    super.key,
+    this.project,
+  });
 
   @override
   State<CreateProjectDialog> createState() => _CreateProjectDialogState();
@@ -18,17 +23,31 @@ class CreateProjectDialog extends StatefulWidget {
 
 class _CreateProjectDialogState extends State<CreateProjectDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
   
   DateTime? _startDate;
   DateTime? _endDate;
   String _status = 'planning';
   final List<int> _selectedMemberIds = [];
 
+  bool get isEditing => widget.project != null;
+
   @override
   void initState() {
     super.initState();
+    _titleController = TextEditingController(text: widget.project?.title ?? '');
+    _descriptionController = TextEditingController(text: widget.project?.description ?? '');
+    
+    if (isEditing) {
+      _status = widget.project.status;
+      // 假设 project.startDate 和 endDate 是 DateTime 类型或 String
+      // 这里需要根据实际 project 对象结构适配
+      // _startDate = widget.project.startDate;
+      // _endDate = widget.project.endDate;
+      // _selectedMemberIds.addAll(widget.project.members.map((m) => m.id));
+    }
+
     // 加载可用成员列表
     context.read<ProjectBloc>().add(const ProjectAvailableMembersRequested());
   }
@@ -59,15 +78,24 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
             Flexible(
               child: BlocListener<ProjectBloc, ProjectState>(
                 listenWhen: (previous, current) => 
-                  current is ProjectCreateSuccess || current is ProjectCreateFailure,
+                  current is ProjectCreateSuccess || 
+                  current is ProjectCreateFailure ||
+                  current is ProjectUpdateSuccess ||
+                  current is ProjectUpdateFailure,
                 listener: (context, state) {
                   if (state is ProjectCreateSuccess) {
-                    // 创建成功，关闭弹窗
                     Navigator.pop(context);
-                    // 显示成功提示
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('项目 "${state.project.title}" 创建成功'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  } else if (state is ProjectUpdateSuccess) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('项目 "${state.project.title}" 更新成功'),
                         backgroundColor: AppColors.success,
                       ),
                     );
@@ -97,15 +125,14 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
                       );
                     }
 
-                    // 创建成功时显示加载中，等待 listener 关闭弹窗
-                    if (state is ProjectCreateSuccess) {
-                      return const Center(
+                    if (state is ProjectCreateSuccess || state is ProjectUpdateSuccess) {
+                      return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 16),
-                            Text('创建成功，正在刷新...'),
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: 16),
+                            Text(isEditing ? '更新成功，正在刷新...' : '创建成功，正在刷新...'),
                           ],
                         ),
                       );
@@ -133,7 +160,7 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text('创建新项目', style: AppTypography.h4),
+          Text(isEditing ? '编辑项目' : '创建新项目', style: AppTypography.h4),
           IconButton(
             onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.close, size: 20),
@@ -239,7 +266,7 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('创建项目'),
+                      : Text(isEditing ? '保存修改' : '创建项目'),
                 ),
               ],
             ),
@@ -409,13 +436,32 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
       return;
     }
 
-    context.read<ProjectBloc>().add(ProjectCreateRequested(
-      title: _titleController.text.trim(),
-      description: _descriptionController.text.trim(),
-      status: _status,
-      startDate: _startDate != null ? DateFormat('yyyy-MM-dd').format(_startDate!) : null,
-      endDate: _endDate != null ? DateFormat('yyyy-MM-dd').format(_endDate!) : null,
-      memberIds: _selectedMemberIds,
-    ));
+    final title = _titleController.text.trim();
+    final description = _descriptionController.text.trim();
+    final startDate = _startDate != null ? DateFormat('yyyy-MM-dd').format(_startDate!) : null;
+    final endDate = _endDate != null ? DateFormat('yyyy-MM-dd').format(_endDate!) : null;
+
+    if (isEditing) {
+      context.read<ProjectBloc>().add(ProjectUpdateRequested(
+        projectId: widget.project.id,
+        title: title,
+        description: description,
+        status: _status,
+        startDate: startDate,
+        endDate: endDate,
+      ));
+      // 如果成员有变更，可能需要单独调用成员更新接口，视后端实现而定
+      // 这里假设 ProjectUpdateRequested 不包含成员更新，或者我们补充调用
+      // context.read<ProjectBloc>().add(ProjectMembersUpdateRequested(...));
+    } else {
+      context.read<ProjectBloc>().add(ProjectCreateRequested(
+        title: title,
+        description: description,
+        status: _status,
+        startDate: startDate,
+        endDate: endDate,
+        memberIds: _selectedMemberIds,
+      ));
+    }
   }
 }

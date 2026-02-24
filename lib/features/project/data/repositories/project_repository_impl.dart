@@ -231,7 +231,7 @@ class ProjectRepositoryImpl implements ProjectRepository {
       if (endDate != null) requestData['end_date'] = endDate;
       
       final response = await _apiClient.patch(
-        '/projects/$id/',
+        '/projects/$id/update/',
         data: requestData,
       );
       
@@ -277,7 +277,7 @@ class ProjectRepositoryImpl implements ProjectRepository {
   @override
   Future<bool> deleteProject(int id) async {
     try {
-      await _apiClient.delete('/projects/$id/');
+      await _apiClient.delete('/projects/$id/delete/');
       return true;
     } catch (e) {
       throw Exception('删除项目失败: $e');

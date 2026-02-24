@@ -297,6 +297,7 @@ class _TaskCardState extends State<_TaskCard> {
             onCreateSubTask: widget.onSubTaskCreateRequest,
             onEdit: widget.onTaskEdit,
             members: widget.members,
+            onViewDetail: (task) => _viewTaskDetail(task), // 传递查看详情回调
           )),
           // 收起按钮
           Padding(
@@ -569,6 +570,7 @@ class _SubTaskCard extends StatefulWidget {
     DateTime? endDate,
   }) onCreateSubTask;
   final Function(Task task) onEdit;
+  final Function(Task task) onViewDetail;
   final List<ProjectMember> members;
 
   const _SubTaskCard({
@@ -576,6 +578,7 @@ class _SubTaskCard extends StatefulWidget {
     required this.onStatusToggle,
     required this.onCreateSubTask,
     required this.onEdit,
+    required this.onViewDetail,
     required this.members,
   });
 
@@ -636,19 +639,39 @@ class _SubTaskCardState extends State<_SubTaskCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      widget.subTask.title,
-                      style: AppTypography.body.copyWith(
-                        fontWeight: FontWeight.w500,
-                        decoration: widget.subTask.status == 'completed'
-                            ? TextDecoration.lineThrough
-                            : null,
-                        color: widget.subTask.status == 'completed'
-                            ? AppColors.textSecondary
-                            : AppColors.textPrimary,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            widget.subTask.title,
+                            style: AppTypography.body.copyWith(
+                              fontWeight: FontWeight.w500,
+                              decoration: widget.subTask.status == 'completed'
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              color: widget.subTask.status == 'completed'
+                                  ? AppColors.textSecondary
+                                  : AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildPriorityChip(widget.subTask.priority),
+                      ],
                     ),
                     const SizedBox(height: 4),
+                    // 子任务描述
+                    if (widget.subTask.description != null && widget.subTask.description!.isNotEmpty) ...[
+                      Text(
+                        widget.subTask.description!,
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                    ],
                     Row(
                       children: [
                         Icon(
@@ -670,6 +693,14 @@ class _SubTaskCardState extends State<_SubTaskCard> {
               ),
               
               // 操作按钮 (查看/添加子任务)
+              _buildActionButton(
+                icon: Icons.visibility_outlined, 
+                tooltip: '查看详情',
+                label: '详情',
+                onTap: () => widget.onViewDetail(widget.subTask),
+              ),
+              const SizedBox(width: 4),
+
               if (widget.subTask.canCreateSubTask)
                  Tooltip(
                   message: '添加子任务',
@@ -683,7 +714,7 @@ class _SubTaskCardState extends State<_SubTaskCard> {
                  ),
 
               // 状态标签
-              _buildStatusChip(widget.subTask.status),
+              // _buildStatusChip(widget.subTask.status),
             ],
           ),
         ),
@@ -698,6 +729,7 @@ class _SubTaskCardState extends State<_SubTaskCard> {
                 onStatusToggle: widget.onStatusToggle,
                 onCreateSubTask: widget.onCreateSubTask,
                 onEdit: widget.onEdit,
+                onViewDetail: widget.onViewDetail,
                 members: widget.members,
               )).toList(),
             ),
@@ -791,6 +823,91 @@ class _SubTaskCardState extends State<_SubTaskCard> {
         style: AppTypography.caption.copyWith(
           color: color,
           fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPriorityChip(String priority) {
+    Color color;
+    String label;
+    switch (priority) {
+      case 'urgent':
+        color = AppColors.error;
+        label = '紧急';
+        break;
+      case 'high':
+        color = AppColors.warning;
+        label = '高';
+        break;
+      case 'medium':
+        color = AppColors.info;
+        label = '中';
+        break;
+      case 'low':
+        color = AppColors.success;
+        label = '低';
+        break;
+      default:
+        color = AppColors.textSecondary;
+        label = '无';
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.caption.copyWith(
+          color: color,
+          fontSize: 8,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String tooltip,
+    String? label,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: AppColors.textSecondary,
+              ),
+              if (label != null) ...[
+                const SizedBox(width: 2),
+                Text(
+                  label,
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

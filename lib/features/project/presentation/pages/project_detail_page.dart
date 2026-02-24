@@ -11,6 +11,7 @@ import '../../../task/presentation/widgets/task_list_widget.dart';
 import '../bloc/project_bloc.dart';
 import '../bloc/project_event.dart';
 import '../bloc/project_state.dart';
+import '../widgets/create_project_dialog.dart';
 
 /// 项目详情页面
 class ProjectDetailPage extends StatefulWidget {
@@ -234,6 +235,10 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
 
   /// 构建项目信息卡片
   Widget _buildProjectInfoCard(dynamic project) {
+    // 检查权限：管理员可编辑
+    final isAdmin = context.read<AuthBloc>().state is AuthAuthenticated && 
+                    (context.read<AuthBloc>().state as AuthAuthenticated).isAdmin;
+
     return Container(
       padding: AppSpacing.cardPadding,
       decoration: BoxDecoration(
@@ -248,6 +253,16 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
             children: [
               _buildStatusBadge(project.status),
               const Spacer(),
+              // 编辑按钮
+              if (isAdmin)
+                Tooltip(
+                  message: '编辑项目',
+                  child: IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    onPressed: () => _showEditProjectDialog(project),
+                    color: AppColors.textSecondary,
+                  ),
+                ),
               if (project.isArchived)
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -336,6 +351,18 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _showEditProjectDialog(dynamic project) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => BlocProvider.value(
+        value: context.read<ProjectBloc>(),
+        child: CreateProjectDialog(
+          project: project,
+        ),
       ),
     );
   }
