@@ -508,7 +508,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
           const Divider(height: 1),
           // Tab 内容
           SizedBox(
-            height: 600, // 固定高度
+            height: MediaQuery.of(context).size.height - 300, // 动态计算高度，减去顶部和其他控件的高度
             child: TabBarView(
               controller: _tabController!,
               children: [
@@ -532,13 +532,114 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
   Widget _buildListView(ProjectDetailLoadSuccess state) {
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: TaskListWidget(
-        tasks: state.tasks,
-        projectId: state.project.id,
-        isLoading: state.tasksLoading,
-        onCreateTask: () => _showCreateTaskDialog(context, state.project),
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              child: TaskListWidget(
+                tasks: state.tasks,
+                projectId: state.project.id,
+                isLoading: state.tasksLoading,
+                onCreateTask: () => _showCreateTaskDialog(context, state.project),
+                onSubTaskStatusToggle: (subTaskId) => _handleSubTaskStatusToggle(state, subTaskId),
+                onSubTaskCreateRequest: (parentTaskId, {
+                  required String title,
+                  String? description,
+                  String priority = 'medium',
+                  DateTime? startDate,
+                  DateTime? endDate,
+                }) {
+                  context.read<ProjectBloc>().add(ProjectSubTaskCreateRequested(
+                    parentTaskId: parentTaskId,
+                    title: title,
+                    description: description,
+                    priority: priority,
+                    startDate: startDate,
+                    endDate: endDate,
+                  ));
+                },
+                onTaskEdit: (task) {
+                  context.read<ProjectBloc>().add(ProjectTaskUpdateRequested(
+                    taskId: task.id,
+                    title: task.title,
+                    description: task.description,
+                    status: task.status,
+                    priority: task.priority,
+                    assigneeId: task.assigneeId,
+                    startDate: task.startDate,
+                    endDate: task.endDate,
+                  ));
+                },
+                members: state.project.members,
+              ),
+            ),
+          ),
+          // TODO: 分页组件
+          /*
+          if (state.tasks.length > 20)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    onPressed: () {}, // TODO: 上一页
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                  Text('第 1 页'),
+                  IconButton(
+                    onPressed: () {}, // TODO: 下一页
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                ],
+              ),
+            ),
+          */
+        ],
       ),
     );
+  }
+
+  void _handleSubTaskStatusToggle(ProjectDetailLoadSuccess state, int subTaskId) {
+    // 查找子任务以获取当前状态
+    // 这里简单起见，我们遍历所有任务及其子任务
+    String? currentStatus;
+    for (final task in state.tasks) {
+      if (task.id == subTaskId) {
+        currentStatus = task.status;
+        break;
+      }
+      for (final subTask in task.children) {
+        if (subTask.id == subTaskId) {
+          currentStatus = subTask.status;
+          break;
+        }
+      }
+      if (currentStatus != null) break;
+    }
+
+    if (currentStatus != null) {
+      final nextStatus = _getNextStatus(currentStatus);
+      context.read<ProjectBloc>().add(ProjectTaskStatusUpdateRequested(
+        taskId: subTaskId,
+        newStatus: nextStatus,
+      ));
+    }
+  }
+
+  String _getNextStatus(String currentStatus) {
+    switch (currentStatus) {
+      case 'planning':
+        return 'pending';
+      case 'pending':
+        return 'in_progress';
+      case 'in_progress':
+        return 'completed';
+      case 'completed':
+        return 'planning';
+      default:
+        return 'planning';
+    }
   }
 
   /// 构建占位视图

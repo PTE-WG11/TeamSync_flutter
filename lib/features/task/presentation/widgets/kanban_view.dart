@@ -50,9 +50,26 @@ class TaskKanbanView extends StatelessWidget {
   void _showCreateSubTaskDialog(BuildContext context, Task parentTask) {
     showDialog(
       context: context,
-      builder: (dialogContext) => BlocProvider.value(
-        value: context.read<TaskBloc>(),
-        child: CreateSubTaskDialog(parentTask: parentTask),
+      builder: (dialogContext) => CreateSubTaskDialog(
+        parentTask: parentTask,
+        onCreate: ({
+          required String title,
+          String? description,
+          String priority = 'medium',
+          DateTime? startDate,
+          DateTime? endDate,
+        }) {
+          context.read<TaskBloc>().add(SubTaskCreated(
+            parentTaskId: parentTask.id,
+            request: CreateSubTaskRequest(
+              title: title,
+              description: description,
+              priority: priority,
+              startDate: startDate,
+              endDate: endDate,
+            ),
+          ));
+        },
       ),
     );
   }

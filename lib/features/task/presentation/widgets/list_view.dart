@@ -411,6 +411,41 @@ class _MainTaskCard extends StatelessWidget {
       builder: (context) => TaskDetailDialog(
         task: task,
         permissionService: permissionService,
+        onSubTaskStatusToggle: (subTaskId) {
+          context.read<TaskBloc>().add(SubTaskStatusToggled(subTaskId));
+        },
+        onSubTaskCreate: ({
+          required String title,
+          String? description,
+          String priority = 'medium',
+          DateTime? startDate,
+          DateTime? endDate,
+        }) {
+          context.read<TaskBloc>().add(SubTaskCreated(
+            parentTaskId: task.id,
+            request: CreateSubTaskRequest(
+              title: title,
+              description: description,
+              priority: priority,
+              startDate: startDate,
+              endDate: endDate,
+            ),
+          ));
+        },
+        onEdit: (updatedTask) {
+          context.read<TaskBloc>().add(TaskUpdated(
+            taskId: updatedTask.id,
+            request: UpdateTaskRequest(
+              title: updatedTask.title,
+              description: updatedTask.description,
+              status: updatedTask.status,
+              priority: updatedTask.priority,
+              assigneeId: updatedTask.assigneeId,
+              startDate: updatedTask.startDate,
+              endDate: updatedTask.endDate,
+            ),
+          ));
+        },
       ),
     );
   }

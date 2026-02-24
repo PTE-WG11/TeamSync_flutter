@@ -6,13 +6,24 @@ import '../../domain/entities/task.dart';
 import '../bloc/task_bloc.dart';
 import '../bloc/task_event.dart';
 
+/// 创建子任务回调
+typedef CreateSubTaskCallback = void Function({
+  required String title,
+  String? description,
+  String priority,
+  DateTime? startDate,
+  DateTime? endDate,
+});
+
 /// 创建子任务弹窗
 class CreateSubTaskDialog extends StatefulWidget {
   final Task parentTask;
+  final CreateSubTaskCallback onCreate;
 
   const CreateSubTaskDialog({
     super.key,
     required this.parentTask,
+    required this.onCreate,
   });
 
   @override
@@ -62,19 +73,14 @@ class _CreateSubTaskDialogState extends State<CreateSubTaskDialog> {
 
     setState(() => _isLoading = true);
 
-    context.read<TaskBloc>().add(
-      SubTaskCreated(
-        parentTaskId: widget.parentTask.id,
-        request: CreateSubTaskRequest(
-          title: _titleController.text.trim(),
-          description: _descriptionController.text.trim().isEmpty
-              ? null
-              : _descriptionController.text.trim(),
-          priority: _priority,
-          startDate: _startDate,
-          endDate: _endDate,
-        ),
-      ),
+    widget.onCreate(
+      title: _titleController.text.trim(),
+      description: _descriptionController.text.trim().isEmpty
+          ? null
+          : _descriptionController.text.trim(),
+      priority: _priority,
+      startDate: _startDate,
+      endDate: _endDate,
     );
 
     Navigator.pop(context);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../config/theme.dart';
 import '../../../project/domain/entities/project.dart';
+import '../../domain/entities/task.dart';
 
 /// 创建任务回调
 typedef CreateTaskCallback = void Function({
@@ -17,12 +18,14 @@ class CreateTaskDialog extends StatefulWidget {
   final int projectId;
   final List<ProjectMember> members;
   final CreateTaskCallback onCreate;
+  final Task? task; // 编辑模式下的初始任务数据
 
   const CreateTaskDialog({
     super.key,
     required this.projectId,
     required this.members,
     required this.onCreate,
+    this.task,
   });
 
   @override
@@ -31,13 +34,27 @@ class CreateTaskDialog extends StatefulWidget {
 
 class _CreateTaskDialogState extends State<CreateTaskDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
   
   int? _selectedAssigneeId;
   String _selectedPriority = 'medium';
   DateTime? _startDate;
   DateTime? _endDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.task?.title);
+    _descriptionController = TextEditingController(text: widget.task?.description);
+    
+    if (widget.task != null) {
+      _selectedAssigneeId = widget.task!.assigneeId;
+      _selectedPriority = widget.task!.priority;
+      _startDate = widget.task!.startDate;
+      _endDate = widget.task!.endDate;
+    }
+  }
 
   final List<Map<String, dynamic>> _priorityOptions = [
     {'value': 'urgent', 'label': '紧急', 'color': AppColors.error},

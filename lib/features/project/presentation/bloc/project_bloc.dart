@@ -36,6 +36,7 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
     on<ProjectTaskCreateRequested>(_onProjectTaskCreateRequested);
     on<ProjectSubTaskCreateRequested>(_onProjectSubTaskCreateRequested);
     on<ProjectTaskStatusUpdateRequested>(_onProjectTaskStatusUpdateRequested);
+    on<ProjectTaskUpdateRequested>(_onProjectTaskUpdateRequested);
     on<ProjectTaskDeleteRequested>(_onProjectTaskDeleteRequested);
   }
 
@@ -509,6 +510,32 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
   ) async {
     try {
       final request = UpdateTaskRequest(status: event.newStatus);
+      await _taskRepository.updateTask(event.taskId, request);
+
+      // 刷新任务列表
+      if (state is ProjectDetailLoadSuccess) {
+        final detailState = state as ProjectDetailLoadSuccess;
+        add(ProjectTasksLoadRequested(projectId: detailState.project.id));
+      }
+    } catch (e) {
+      // 错误处理
+    }
+  }
+
+  Future<void> _onProjectTaskUpdateRequested(
+    ProjectTaskUpdateRequested event,
+    Emitter<ProjectState> emit,
+  ) async {
+    try {
+      final request = UpdateTaskRequest(
+        title: event.title,
+        description: event.description,
+        status: event.status,
+        priority: event.priority,
+        assigneeId: event.assigneeId,
+        startDate: event.startDate,
+        endDate: event.endDate,
+      );
       await _taskRepository.updateTask(event.taskId, request);
 
       // 刷新任务列表

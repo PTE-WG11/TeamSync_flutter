@@ -5,20 +5,29 @@ import '../../../../core/permissions/permission_service.dart';
 import '../../../attachment/data/repositories/attachment_repository_impl.dart';
 import '../../../attachment/domain/entities/attachment.dart';
 import '../../../attachment/presentation/widgets/attachment_uploader.dart';
+import '../../data/repositories/task_repository_impl.dart';
 import '../../domain/entities/task.dart';
-import '../bloc/task_bloc.dart';
-import '../bloc/task_event.dart';
 import 'create_subtask_dialog.dart';
+import 'create_task_dialog.dart';
+import '../../../project/domain/entities/project.dart'; // for ProjectMember
 
 /// 任务详情对话框
 class TaskDetailDialog extends StatefulWidget {
   final Task task;
   final PermissionService permissionService;
+  final Function(Task task) onEdit; // 编辑任务回调
+  final Function(int subTaskId) onSubTaskStatusToggle; // 子任务状态切换回调
+  final CreateSubTaskCallback onSubTaskCreate; // 创建子任务回调
+  final List<ProjectMember> members; // 成员列表，用于编辑任务时选择负责人
 
   const TaskDetailDialog({
     super.key,
     required this.task,
     required this.permissionService,
+    required this.onEdit,
+    required this.onSubTaskStatusToggle,
+    required this.onSubTaskCreate,
+    this.members = const [],
   });
 
   @override
@@ -33,7 +42,24 @@ class _TaskDetailDialogState extends State<TaskDetailDialog> {
     super.initState();
     // 从任务对象中获取附件列表
     _attachments = widget.task.attachments;
+    // 异步加载最新任务详情（包含最新附件）
+    _loadTaskDetail();
   }
+
+  Future<void> _loadTaskDetail() async {
+    try {
+      final repository = TaskRepositoryImpl();
+      final task = await repository.getTaskDetail(widget.task.id);
+      if (mounted) {
+        setState(() {
+          _attachments = task.attachments;
+        });
+      }
+    } catch (e) {
+      debugPrint('加载任务详情失败: $e');
+    }
+  }
+
 
   /// 判断当前用户是否可以编辑主任务
   bool get _canEditMainTask {
@@ -314,9 +340,7 @@ class _TaskDetailDialogState extends State<TaskDetailDialog> {
           InkWell(
             onTap: canEdit
                 ? () {
-                    context.read<TaskBloc>().add(
-                      SubTaskStatusToggled(subTask.id),
-                    );
+                    widget.onSubTaskStatusToggle(subTask.id);
                     // 刷新当前对话框
                     setState(() {});
                   }
@@ -430,8 +454,8 @@ class _TaskDetailDialogState extends State<TaskDetailDialog> {
             const SizedBox(width: 12),
             ElevatedButton.icon(
               onPressed: () {
-                // TODO: 打开编辑任务对话框
                 Navigator.pop(context);
+                _showEditTaskDialog();
               },
               icon: const Icon(Icons.edit, size: 16),
               label: const Text('编辑任务'),
@@ -446,10 +470,44 @@ class _TaskDetailDialogState extends State<TaskDetailDialog> {
     );
   }
 
+  void _showEditTaskDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => CreateTaskDialog(
+        projectId: widget.task.projectId,
+        members: widget.members,
+        task: widget.task,
+        onCreate: ({
+          required String title,
+          String? description,
+          required int assigneeId,
+          String priority = 'medium',
+          DateTime? startDate,
+          DateTime? endDate,
+        }) {
+          // 这里虽然叫 onCreate，但对于编辑模式，我们需要调用 onEdit 回调
+          // CreateTaskDialog 返回的数据结构是一样的，我们需要组装成 Task 对象
+          final updatedTask = widget.task.copyWith(
+            title: title,
+            description: description,
+            assigneeId: assigneeId,
+            priority: priority,
+            startDate: startDate,
+            endDate: endDate,
+          );
+          widget.onEdit(updatedTask);
+        },
+      ),
+    );
+  }
+
   void _showCreateSubTaskDialog() {
     showDialog(
       context: context,
-      builder: (context) => CreateSubTaskDialog(parentTask: widget.task),
+      builder: (context) => CreateSubTaskDialog(
+        parentTask: widget.task,
+        onCreate: widget.onSubTaskCreate,
+      ),
     );
   }
 

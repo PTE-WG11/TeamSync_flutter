@@ -283,6 +283,41 @@ class ProjectTaskStatusUpdateRequested extends ProjectEvent {
   List<Object?> get props => [taskId, newStatus];
 }
 
+/// 更新任务详情
+class ProjectTaskUpdateRequested extends ProjectEvent {
+  final int taskId;
+  final String? title;
+  final String? description;
+  final String? status;
+  final String? priority;
+  final int? assigneeId;
+  final DateTime? startDate;
+  final DateTime? endDate;
+
+  const ProjectTaskUpdateRequested({
+    required this.taskId,
+    this.title,
+    this.description,
+    this.status,
+    this.priority,
+    this.assigneeId,
+    this.startDate,
+    this.endDate,
+  });
+
+  @override
+  List<Object?> get props => [
+        taskId,
+        title,
+        description,
+        status,
+        priority,
+        assigneeId,
+        startDate,
+        endDate,
+      ];
+}
+
 /// 删除任务
 class ProjectTaskDeleteRequested extends ProjectEvent {
   final int taskId;

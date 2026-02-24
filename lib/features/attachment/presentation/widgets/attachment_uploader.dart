@@ -6,6 +6,8 @@ import '../../../../core/permissions/permission_service.dart';
 import '../../domain/entities/attachment.dart';
 import '../../domain/repositories/attachment_repository.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
 /// 附件上传组件
 class AttachmentUploader extends StatefulWidget {
   final int taskId;
@@ -242,14 +244,24 @@ class _AttachmentUploaderState extends State<AttachmentUploader> {
     }
 
     try {
-      // TODO: 实现下载逻辑
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('开始下载...')),
-      );
+      final downloadUrl = await widget.repository.getDownloadUrl(attachment.id);
+      final uri = Uri.parse(downloadUrl);
+      
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('无法打开下载链接')),
+          );
+        }
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('下载失败: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('下载失败: $e')),
+        );
+      }
     }
   }
 

@@ -18,7 +18,9 @@ class TaskRepositoryImpl implements TaskRepository {
     TaskFilter? filter,
   }) async {
     try {
-      final queryParams = <String, dynamic>{};
+      final queryParams = <String, dynamic>{
+        'view': view,
+      };
       
       if (filter?.status != null && filter!.status!.isNotEmpty) {
         queryParams['status'] = filter.status;
