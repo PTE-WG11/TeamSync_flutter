@@ -47,6 +47,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_tokenKey, result.accessToken);
       await prefs.setString(_refreshTokenKey, result.refreshToken);
+      
+      // 同时保存到 ApiClient
+      await _authRepository.saveTokens(
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      );
       await prefs.setString(_userIdKey, user.id.toString());
       await prefs.setString(_usernameKey, user.username);
       await prefs.setString(_userEmailKey, user.email);
@@ -119,6 +125,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     // 清除本地存储
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+    
+    // 清除 ApiClient 中的 token
+    await _authRepository.clearTokens();
 
     emit(AuthUnauthenticated());
   }

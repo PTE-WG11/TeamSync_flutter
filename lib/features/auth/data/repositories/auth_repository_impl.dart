@@ -200,6 +200,20 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
+  @override
+  Future<void> saveTokens({
+    required String accessToken,
+    required String refreshToken,
+  }) async {
+    await _apiClient.setToken(accessToken);
+    await _apiClient.setRefreshToken(refreshToken);
+  }
+  
+  @override
+  Future<void> clearTokens() async {
+    await _apiClient.clearToken();
+  }
+
   /// 解析用户信息
   UserInfo _parseUserInfo(Map<String, dynamic> json) {
     // 解析团队信息（后端返回 team_id 和 team_name）

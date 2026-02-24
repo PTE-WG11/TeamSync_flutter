@@ -36,6 +36,15 @@ abstract class AuthRepository {
   /// 检查访客状态
   /// GET /api/auth/visitor/status/
   Future<VisitorStatus> checkVisitorStatus();
+  
+  /// 保存 tokens 到本地存储
+  Future<void> saveTokens({
+    required String accessToken,
+    required String refreshToken,
+  });
+  
+  /// 清除本地存储的 tokens
+  Future<void> clearTokens();
 }
 
 /// 登录结果
