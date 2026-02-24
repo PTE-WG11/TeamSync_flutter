@@ -198,18 +198,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     }
   }
 
-  /// 检查状态流转是否合法
-  bool _isValidStatusTransition(String fromStatus, String toStatus) {
-    // 状态顺序: planning -> pending -> in_progress -> completed
-    final statusOrder = ['planning', 'pending', 'in_progress', 'completed'];
-    final fromIndex = statusOrder.indexOf(fromStatus);
-    final toIndex = statusOrder.indexOf(toStatus);
-    
-    if (fromIndex == -1 || toIndex == -1) return false;
-    
-    // 只允许相邻状态流转（向前或向后一步）
-    return (toIndex - fromIndex).abs() == 1;
-  }
+  bool _isValidStatusTransition(String fromStatus, String toStatus) => true;
 
   /// 子任务状态切换（勾选按钮）
   Future<void> _onSubTaskStatusToggled(

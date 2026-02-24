@@ -340,11 +340,21 @@ class TaskRepositoryImpl implements TaskRepository {
         if (columns != null) {
           return columns.map((col) {
             final colMap = col as Map<String, dynamic>;
+            final columnId = (colMap['id'] as String? ?? '').trim();
             final tasks = (colMap['tasks'] as List<dynamic>?)
-                ?.whereType<Map<String, dynamic>>()
-                .map((t) => TaskModel.fromJson(t))
-                .toList() ?? [];
-            
+                    ?.whereType<Map<String, dynamic>>()
+                    .map((t) {
+                  final status = (t['status'] as String?)?.trim();
+                  if (status == null || status.isEmpty) {
+                    return TaskModel.fromJson({
+                      ...t,
+                      'status': columnId,
+                    });
+                  }
+                  return TaskModel.fromJson(t);
+                }).toList() ??
+                [];
+
             return KanbanColumnData(
               id: colMap['id'] as String? ?? '',
               title: colMap['title'] as String? ?? '',

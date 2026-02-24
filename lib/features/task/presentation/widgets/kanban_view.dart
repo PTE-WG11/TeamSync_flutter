@@ -96,12 +96,9 @@ class _KanbanColumnWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return DragTarget<Task>(
       onWillAcceptWithDetails: (details) {
-        // 只允许相邻状态之间的拖拽
-        final sourceStatus = details.data.status;
-        final targetStatus = column.id;
-        
-        // 检查是否是相邻状态
-        return _isAdjacentStatus(sourceStatus, targetStatus);
+        final sourceStatus = details.data.status.trim().toLowerCase();
+        final targetStatus = column.id.trim().toLowerCase();
+        return sourceStatus != targetStatus;
       },
       onAcceptWithDetails: (details) {
         onTaskDropped(details.data.id, column.id);
@@ -109,15 +106,18 @@ class _KanbanColumnWidget extends StatelessWidget {
       builder: (context, candidateData, rejectedData) {
         final isHovered = candidateData.isNotEmpty;
         
+        final highlightColor = Color(column.color).withOpacity(0.15);
+        final borderColor = Color(column.color);
+
         return Container(
           margin: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: isHovered 
-                ? Color(column.color).withValues(alpha: 0.1)
+                ? highlightColor
                 : AppColors.surface,
             borderRadius: BorderRadius.circular(AppRadius.lg),
             border: isHovered 
-                ? Border.all(color: Color(column.color))
+                ? Border.all(color: borderColor, width: 2.0)
                 : null,
           ),
           child: Column(
@@ -193,17 +193,19 @@ class _KanbanColumnWidget extends StatelessWidget {
     );
   }
 
-  /// 检查两个状态是否相邻（允许正向和反向流转）
+  /// 检查两个状态是否相邻（允许正向和反向流转，支持闭环）
   bool _isAdjacentStatus(String fromStatus, String toStatus) {
     // 状态顺序：planning -> pending -> in_progress -> completed
     final statusOrder = ['planning', 'pending', 'in_progress', 'completed'];
-    final fromIndex = statusOrder.indexOf(fromStatus);
-    final toIndex = statusOrder.indexOf(toStatus);
+    // 转换为小写并去空格，防止 ID 格式不一致
+    final fromIndex = statusOrder.indexOf(fromStatus.trim().toLowerCase());
+    final toIndex = statusOrder.indexOf(toStatus.trim().toLowerCase());
     
     if (fromIndex == -1 || toIndex == -1) return false;
     
-    // 只允许相邻状态之间流转（相差1）
-    return (fromIndex - toIndex).abs() == 1;
+    final diff = (fromIndex - toIndex).abs();
+    // 允许相邻状态 (diff == 1) 或首尾闭环 (diff == 3)
+    return diff == 1 || diff == 3;
   }
 }
 
@@ -218,21 +220,25 @@ class _KanbanTaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Draggable<Task>(
-      data: task,
-      feedback: Material(
-        elevation: 4,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: SizedBox(
-          width: 240,
-          child: _buildCardContent(showActions: false),
-        ),
-      ),
-      childWhenDragging: Opacity(
-        opacity: 0.5,
-        child: _buildCardContent(),
-      ),
-      child: _buildCardContent(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Draggable<Task>(
+          data: task,
+          feedback: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: SizedBox(
+              width: constraints.maxWidth,
+              child: _buildCardContent(showActions: false),
+            ),
+          ),
+          childWhenDragging: Opacity(
+            opacity: 0.5,
+            child: _buildCardContent(),
+          ),
+          child: _buildCardContent(),
+        );
+      },
     );
   }
 

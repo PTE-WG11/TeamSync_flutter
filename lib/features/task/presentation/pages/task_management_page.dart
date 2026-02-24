@@ -31,6 +31,8 @@ class _TaskManagementPageState extends State<TaskManagementPage> {
   void initState() {
     super.initState();
     _loadProjects();
+    // 页面初始化时加载任务数据
+    context.read<TaskBloc>().add(const TasksLoadRequested());
   }
 
   Future<void> _loadProjects() async {
@@ -48,15 +50,10 @@ class _TaskManagementPageState extends State<TaskManagementPage> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => TaskBloc(
-        taskRepository: TaskRepositoryImpl(),
-        permissionService: context.read<PermissionService>(),
-      )..add(const TasksLoadRequested()),
-      child: _TaskManagementPageContent(
-        projects: _projects,
-        isLoadingProjects: _isLoadingProjects,
-      ),
+    // 不再创建新的 BlocProvider，使用路由层提供的 bloc
+    return _TaskManagementPageContent(
+      projects: _projects,
+      isLoadingProjects: _isLoadingProjects,
     );
   }
 }
