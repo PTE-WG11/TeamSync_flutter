@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../../attachment/domain/entities/attachment.dart';
 
 /// 任务实体（支持主任务和子任务）
 class Task extends Equatable {
@@ -21,6 +22,7 @@ class Task extends Equatable {
   final List<Task> children; // 子任务列表
   final int subtaskCount; // 子任务数量
   final int completedSubtaskCount; // 已完成子任务数量
+  final List<Attachment> attachments; // 附件列表
 
   const Task({
     required this.id,
@@ -42,6 +44,7 @@ class Task extends Equatable {
     this.children = const [],
     this.subtaskCount = 0,
     this.completedSubtaskCount = 0,
+    this.attachments = const [],
   });
 
   /// 是否为主任务
@@ -119,6 +122,7 @@ class Task extends Equatable {
         children,
         subtaskCount,
         completedSubtaskCount,
+        attachments,
       ];
 
   Task copyWith({
@@ -141,6 +145,7 @@ class Task extends Equatable {
     List<Task>? children,
     int? subtaskCount,
     int? completedSubtaskCount,
+    List<Attachment>? attachments,
   }) {
     return Task(
       id: id ?? this.id,
@@ -163,6 +168,7 @@ class Task extends Equatable {
       subtaskCount: subtaskCount ?? this.subtaskCount,
       completedSubtaskCount:
           completedSubtaskCount ?? this.completedSubtaskCount,
+      attachments: attachments ?? this.attachments,
     );
   }
 }
@@ -193,8 +199,8 @@ class CreateTaskRequest extends Equatable {
         'assignee_id': assigneeId,
         'status': status,
         'priority': priority,
-        'start_date': startDate?.toIso8601String(),
-        'end_date': endDate?.toIso8601String(),
+        'start_date': startDate != null ? _formatDate(startDate!) : null,
+        'end_date': endDate != null ? _formatDate(endDate!) : null,
       };
 
   @override
@@ -232,8 +238,8 @@ class CreateSubTaskRequest extends Equatable {
         'description': description,
         'status': status,
         'priority': priority,
-        'start_date': startDate?.toIso8601String(),
-        'end_date': endDate?.toIso8601String(),
+        'start_date': startDate != null ? _formatDate(startDate!) : null,
+        'end_date': endDate != null ? _formatDate(endDate!) : null,
       };
 
   @override
@@ -274,8 +280,8 @@ class UpdateTaskRequest extends Equatable {
     if (status != null) map['status'] = status;
     if (priority != null) map['priority'] = priority;
     if (assigneeId != null) map['assignee_id'] = assigneeId;
-    if (startDate != null) map['start_date'] = startDate!.toIso8601String();
-    if (endDate != null) map['end_date'] = endDate!.toIso8601String();
+    if (startDate != null) map['start_date'] = _formatDate(startDate!);
+    if (endDate != null) map['end_date'] = _formatDate(endDate!);
     return map;
   }
 
@@ -291,30 +297,95 @@ class UpdateTaskRequest extends Equatable {
       ];
 }
 
+/// 更新任务状态请求
+class UpdateTaskStatusRequest extends Equatable {
+  final String status;
+
+  const UpdateTaskStatusRequest({
+    required this.status,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'status': status,
+      };
+
+  @override
+  List<Object?> get props => [status];
+}
+
+/// 任务进度统计
+class TaskProgressStats extends Equatable {
+  final int total;
+  final int completed;
+  final int inProgress;
+  final int pending;
+  final int planning;
+  final double completionRate;
+
+  const TaskProgressStats({
+    required this.total,
+    required this.completed,
+    required this.inProgress,
+    required this.pending,
+    required this.planning,
+    required this.completionRate,
+  });
+
+  factory TaskProgressStats.fromJson(Map<String, dynamic> json) {
+    return TaskProgressStats(
+      total: json['total'] as int? ?? 0,
+      completed: json['completed'] as int? ?? 0,
+      inProgress: json['in_progress'] as int? ?? 0,
+      pending: json['pending'] as int? ?? 0,
+      planning: json['planning'] as int? ?? 0,
+      completionRate: (json['completion_rate'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        total,
+        completed,
+        inProgress,
+        pending,
+        planning,
+        completionRate,
+      ];
+}
+
 /// 任务筛选条件
 class TaskFilter extends Equatable {
   final String? status;
   final String? assignee;
   final String? search;
+  final int? projectId;
 
   const TaskFilter({
     this.status,
     this.assignee,
     this.search,
+    this.projectId,
   });
 
   TaskFilter copyWith({
     String? status,
     String? assignee,
     String? search,
+    int? projectId,
   }) {
     return TaskFilter(
       status: status ?? this.status,
       assignee: assignee ?? this.assignee,
       search: search ?? this.search,
+      projectId: projectId ?? this.projectId,
     );
   }
 
   @override
-  List<Object?> get props => [status, assignee, search];
+  List<Object?> get props => [status, assignee, search, projectId];
+}
+
+/// 格式化日期为 YYYY-MM-DD 格式
+String _formatDate(DateTime date) {
+  return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 }

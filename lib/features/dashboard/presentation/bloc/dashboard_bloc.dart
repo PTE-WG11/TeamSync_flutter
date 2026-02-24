@@ -1,15 +1,16 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../data/repositories/mock_dashboard_repository.dart';
+import '../../domain/repositories/dashboard_repository.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 
 /// 仪表盘 BLoC
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
-  final MockDashboardRepository _repository;
+  final DashboardRepository _repository;
 
-  DashboardBloc({MockDashboardRepository? repository})
-      : _repository = repository ?? MockDashboardRepository(),
+  DashboardBloc({required DashboardRepository repository})
+      : _repository = repository,
         super(DashboardInitial()) {
     on<DashboardDataRequested>(_onDataRequested);
     on<DashboardDataRefreshed>(_onDataRefreshed);

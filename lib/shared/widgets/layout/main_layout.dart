@@ -4,10 +4,15 @@ import 'package:go_router/go_router.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../../features/project/domain/entities/project.dart';
 import '../../../features/project/presentation/bloc/project_bloc.dart';
+import '../../../features/project/presentation/bloc/project_event.dart';
+import '../../../features/project/presentation/bloc/project_state.dart';
 import '../../../features/project/presentation/widgets/create_project_dialog.dart';
 import '../../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import '../../../features/dashboard/presentation/bloc/dashboard_event.dart';
+import '../../../features/project/data/repositories/project_repository_impl.dart';
+import '../../../features/task/data/repositories/task_repository_impl.dart';
 
 
 /// 主布局框架
@@ -25,26 +30,36 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
-  // 模拟数据 - 后续从API获取
-  final List<Map<String, dynamic>> _projects = const [
-    {'id': 1, 'name': '团队同步开发项目', 'status': 'in_progress'},
-    {'id': 2, 'name': '官网改版项目', 'status': 'planning'},
-    {'id': 3, 'name': '电商重构项目', 'status': 'completed'},
-    {'id': 4, 'name': '移动端 APP 开发', 'status': 'archived'},
-  ];
-
-  final List<Map<String, dynamic>> _archivedProjects = const [
-    {'id': 5, 'name': '旧官网项目', 'status': 'archived'},
-  ];
-
   final int _unreadNotificationCount = 3;
+  
+  @override
+  void initState() {
+    super.initState();
+    // 延迟加载项目列表，等待 context 可用
+    Future.microtask(() => _loadSidebarProjects());
+  }
+  
+  /// 加载侧边栏项目列表
+  void _loadSidebarProjects() {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated && !authState.isVisitor) {
+      context.read<ProjectBloc>().add(ProjectsLoadRequested(
+        userId: authState.userId,
+        isAdmin: authState.isAdmin,
+        isVisitor: authState.isVisitor,
+      ));
+    }
+  }
 
   /// 显示创建项目弹窗
   void _showCreateProjectDialog() {
     showDialog(
       context: context,
       builder: (dialogContext) => BlocProvider(
-        create: (context) => ProjectBloc(),
+        create: (context) => ProjectBloc(
+          repository: ProjectRepositoryImpl(),
+          taskRepository: TaskRepositoryImpl(),
+        ),
         child: const CreateProjectDialog(),
       ),
     ).then((_) {
@@ -92,8 +107,6 @@ class _MainLayoutState extends State<MainLayout> {
               children: [
                 // 左侧边栏 - 根据角色显示不同菜单
                 _Sidebar(
-                  projects: _projects,
-                  archivedProjects: _archivedProjects,
                   currentRoute: location,
                   onRouteSelected: (route) => context.go(route),
                   onCreateProject: _showCreateProjectDialog,
@@ -393,16 +406,12 @@ class _TopNavigationBar extends StatelessWidget {
 /// 侧边栏
 /// 包含：个人工作区 + 项目列表 + 归档项目
 class _Sidebar extends StatelessWidget {
-  final List<Map<String, dynamic>> projects;
-  final List<Map<String, dynamic>> archivedProjects;
   final String currentRoute;
   final ValueChanged<String> onRouteSelected;
   final VoidCallback onCreateProject;
   final bool isAdmin;
 
   const _Sidebar({
-    required this.projects,
-    required this.archivedProjects,
     required this.currentRoute,
     required this.onRouteSelected,
     required this.onCreateProject,
@@ -411,7 +420,18 @@ class _Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BlocBuilder<ProjectBloc, ProjectState>(
+      builder: (context, projectState) {
+        // 从 state 获取项目列表
+        List<Project> projects = [];
+        List<Project> archivedProjects = [];
+        
+        if (projectState is ProjectsLoadSuccess) {
+          projects = projectState.projects.where((p) => !p.isArchived).toList();
+          archivedProjects = projectState.projects.where((p) => p.isArchived).toList();
+        }
+        
+        return Container(
       width: 240,
       color: AppColors.surface,
       child: Column(
@@ -426,6 +446,11 @@ class _Sidebar extends StatelessWidget {
               route: AppRoutes.home,
             ),
             _buildCreateProjectButton(context),
+            _buildMenuItem(
+              icon: Icons.assignment_outlined,
+              label: '任务管理',
+              route: AppRoutes.tasks,
+            ),
             _buildMenuItem(
               icon: Icons.people_outline,
               label: '成员管理',
@@ -443,14 +468,19 @@ class _Sidebar extends StatelessWidget {
               route: AppRoutes.home,
             ),
             _buildMenuItem(
+              icon: Icons.assignment_outlined,
+              label: '任务管理',
+              route: AppRoutes.tasks,
+            ),
+            _buildMenuItem(
               icon: Icons.calendar_today_outlined,
               label: '日历视图',
               route: AppRoutes.calendar,
             ),
             _buildMenuItem(
-              icon: Icons.folder_outlined,
-              label: '文件管理',
-              route: '/files', // 占位
+              icon: Icons.people_outline,
+              label: '团队成员',
+              route: AppRoutes.members,
             ),
             const Divider(height: 32),
           ],
@@ -496,6 +526,8 @@ class _Sidebar extends StatelessWidget {
           ),
         ],
       ),
+    );
+  },
     );
   }
 
@@ -579,15 +611,14 @@ class _Sidebar extends StatelessWidget {
     );
   }
 
-  Widget _buildProjectItem(Map<String, dynamic> project, {bool isArchived = false}) {
-    // final projectRoute = '${AppRoutes.projects}/${project['id']}';
-    final projectId = project['id'].toString();
+  Widget _buildProjectItem(Project project, {bool isArchived = false}) {
+    final projectId = project.id.toString();
     final projectRoute = '${AppRoutes.projects}/$projectId';
     final isSelected = currentRoute == projectRoute;
 
     // 根据状态获取颜色
     Color statusColor;
-    switch (project['status']) {
+    switch (project.status) {
       case 'in_progress':
         statusColor = AppColors.statusInProgress;
         break;
@@ -624,7 +655,7 @@ class _Sidebar extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                project['name'],
+                project.title,
                 style: AppTypography.body.copyWith(
                   color: isArchived
                       ? AppColors.textSecondary

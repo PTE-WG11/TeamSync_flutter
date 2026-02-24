@@ -57,44 +57,67 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
             const Divider(height: 1),
             // 弹窗内容
             Flexible(
-              child: BlocBuilder<ProjectBloc, ProjectState>(
-                builder: (context, state) {
-                  if (state is ProjectCreateFormState && state.availableMembers.isEmpty) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  
-                  if (state is ProjectCreateFailure) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.error_outline, size: 48, color: AppColors.error),
-                          const SizedBox(height: 16),
-                          Text(state.message),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('关闭'),
-                          ),
-                        ],
+              child: BlocListener<ProjectBloc, ProjectState>(
+                listenWhen: (previous, current) => 
+                  current is ProjectCreateSuccess || current is ProjectCreateFailure,
+                listener: (context, state) {
+                  if (state is ProjectCreateSuccess) {
+                    // 创建成功，关闭弹窗
+                    Navigator.pop(context);
+                    // 显示成功提示
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('项目 "${state.project.title}" 创建成功'),
+                        backgroundColor: AppColors.success,
                       ),
                     );
                   }
-
-                  if (state is ProjectCreateSuccess) {
-                    // 创建成功，关闭弹窗
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      Navigator.pop(context);
-                    });
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final members = state is ProjectCreateFormState 
-                      ? state.availableMembers 
-                      : <ProjectMember>[];
-
-                  return _buildForm(members, state is ProjectCreateFormState && state.isSubmitting);
                 },
+                child: BlocBuilder<ProjectBloc, ProjectState>(
+                  builder: (context, state) {
+                    if (state is ProjectCreateFormState && state.availableMembers.isEmpty) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    
+                    if (state is ProjectCreateFailure) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                            const SizedBox(height: 16),
+                            Text(state.message),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('关闭'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // 创建成功时显示加载中，等待 listener 关闭弹窗
+                    if (state is ProjectCreateSuccess) {
+                      return const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('创建成功，正在刷新...'),
+                          ],
+                        ),
+                      );
+                    }
+
+                    final members = state is ProjectCreateFormState 
+                        ? state.availableMembers 
+                        : <ProjectMember>[];
+
+                    return _buildForm(members, state is ProjectCreateFormState && state.isSubmitting);
+                  },
+                ),
               ),
             ),
           ],

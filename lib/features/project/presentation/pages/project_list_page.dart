@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../config/routes.dart';
 import '../../../../config/theme.dart';
+import '../../../../core/permissions/permission_widgets.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../domain/entities/project.dart';
 import '../bloc/project_bloc.dart';
 import '../bloc/project_event.dart';
@@ -25,7 +27,19 @@ class _ProjectListPageState extends State<ProjectListPage> {
   @override
   void initState() {
     super.initState();
-    context.read<ProjectBloc>().add(const ProjectsLoadRequested());
+    _loadProjectsWithPermission();
+  }
+
+  /// 加载项目列表（带权限信息）
+  void _loadProjectsWithPermission() {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) {
+      context.read<ProjectBloc>().add(ProjectsLoadRequested(
+        userId: authState.userId,
+        isAdmin: authState.isAdmin,
+        isVisitor: authState.isVisitor,
+      ));
+    }
   }
 
   @override
@@ -66,14 +80,17 @@ class _ProjectListPageState extends State<ProjectListPage> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text('项目管理', style: AppTypography.h3),
-        ElevatedButton.icon(
-          onPressed: () => _showCreateProjectDialog(),
-          icon: const Icon(Icons.add, size: 18),
-          label: const Text('创建项目'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: AppColors.textInverse,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        // 仅管理员可见创建项目按钮
+        AdminOnly(
+          child: ElevatedButton.icon(
+            onPressed: () => _showCreateProjectDialog(),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('创建项目'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textInverse,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
           ),
         ),
       ],
@@ -339,6 +356,9 @@ class _ProjectListPageState extends State<ProjectListPage> {
 
   /// 显示项目操作菜单
   void _showProjectActions(Project project) {
+    final authState = context.read<AuthBloc>().state;
+    final isAdmin = authState is AuthAuthenticated && authState.isAdmin;
+
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
@@ -346,32 +366,44 @@ class _ProjectListPageState extends State<ProjectListPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 仅管理员可见编辑/归档/删除操作
+            if (isAdmin) ...[
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('编辑项目'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showEditProjectDialog(project);
+                },
+              ),
+              if (!project.isArchived)
+                ListTile(
+                  leading: const Icon(Icons.archive_outlined),
+                  title: const Text('归档项目'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showArchiveConfirm(project);
+                  },
+                ),
+              if (project.isArchived)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: AppColors.error),
+                  title: const Text('删除项目', style: TextStyle(color: AppColors.error)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showDeleteConfirm(project);
+                  },
+                ),
+            ],
+            // 所有成员都可见的操作
             ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('编辑项目'),
+              leading: const Icon(Icons.visibility_outlined),
+              title: const Text('查看详情'),
               onTap: () {
                 Navigator.pop(context);
-                _showEditProjectDialog(project);
+                _navigateToProjectDetail(project.id);
               },
             ),
-            if (!project.isArchived)
-              ListTile(
-                leading: const Icon(Icons.archive_outlined),
-                title: const Text('归档项目'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showArchiveConfirm(project);
-                },
-              ),
-            if (project.isArchived)
-              ListTile(
-                leading: const Icon(Icons.delete_outline, color: AppColors.error),
-                title: const Text('删除项目', style: TextStyle(color: AppColors.error)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showDeleteConfirm(project);
-                },
-              ),
           ],
         ),
       ),

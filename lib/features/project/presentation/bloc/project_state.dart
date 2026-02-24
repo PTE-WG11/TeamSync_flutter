@@ -26,6 +26,9 @@ class ProjectsLoadSuccess extends ProjectState {
   final bool hasMore;
   final int currentPage;
   final int totalCount;
+  final String? userId;     // 当前用户ID
+  final bool isAdmin;       // 是否为管理员
+  final bool isVisitor;     // 是否为访客
 
   const ProjectsLoadSuccess({
     required this.projects,
@@ -33,6 +36,9 @@ class ProjectsLoadSuccess extends ProjectState {
     this.hasMore = false,
     this.currentPage = 1,
     this.totalCount = 0,
+    this.userId,
+    this.isAdmin = false,
+    this.isVisitor = false,
   });
 
   ProjectsLoadSuccess copyWith({
@@ -41,6 +47,9 @@ class ProjectsLoadSuccess extends ProjectState {
     bool? hasMore,
     int? currentPage,
     int? totalCount,
+    String? userId,
+    bool? isAdmin,
+    bool? isVisitor,
   }) {
     return ProjectsLoadSuccess(
       projects: projects ?? this.projects,
@@ -48,6 +57,9 @@ class ProjectsLoadSuccess extends ProjectState {
       hasMore: hasMore ?? this.hasMore,
       currentPage: currentPage ?? this.currentPage,
       totalCount: totalCount ?? this.totalCount,
+      userId: userId ?? this.userId,
+      isAdmin: isAdmin ?? this.isAdmin,
+      isVisitor: isVisitor ?? this.isVisitor,
     );
   }
 
@@ -58,6 +70,9 @@ class ProjectsLoadSuccess extends ProjectState {
         hasMore,
         currentPage,
         totalCount,
+        userId,
+        isAdmin,
+        isVisitor,
       ];
 }
 
@@ -81,37 +96,49 @@ class ProjectDetailLoadSuccess extends ProjectState {
   final Project project;
   final List<Task> tasks;
   final bool tasksLoading;
+  final String? userId;     // 当前用户ID
+  final bool isAdmin;       // 是否为管理员
 
   const ProjectDetailLoadSuccess(
     this.project, {
     this.tasks = const [],
     this.tasksLoading = false,
+    this.userId,
+    this.isAdmin = false,
   });
 
   ProjectDetailLoadSuccess copyWith({
     Project? project,
     List<Task>? tasks,
     bool? tasksLoading,
+    String? userId,
+    bool? isAdmin,
   }) {
     return ProjectDetailLoadSuccess(
       project ?? this.project,
       tasks: tasks ?? this.tasks,
       tasksLoading: tasksLoading ?? this.tasksLoading,
+      userId: userId ?? this.userId,
+      isAdmin: isAdmin ?? this.isAdmin,
     );
   }
 
   @override
-  List<Object?> get props => [project, tasks, tasksLoading];
+  List<Object?> get props => [project, tasks, tasksLoading, userId, isAdmin];
 }
 
 /// 项目详情加载失败
 class ProjectDetailLoadFailure extends ProjectState {
   final String message;
+  final bool isForbidden;   // 是否为无权限访问
 
-  const ProjectDetailLoadFailure({required this.message});
+  const ProjectDetailLoadFailure({
+    required this.message,
+    this.isForbidden = false,
+  });
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, isForbidden];
 }
 
 // ==================== 创建项目状态 ====================

@@ -15,11 +15,19 @@ abstract class ProjectEvent extends Equatable {
 /// 加载项目列表
 class ProjectsLoadRequested extends ProjectEvent {
   final ProjectFilter filter;
+  final String? userId;     // 当前用户ID
+  final bool isAdmin;       // 是否为管理员
+  final bool isVisitor;     // 是否为访客
 
-  const ProjectsLoadRequested({this.filter = const ProjectFilter()});
+  const ProjectsLoadRequested({
+    this.filter = const ProjectFilter(),
+    this.userId,
+    this.isAdmin = false,
+    this.isVisitor = false,
+  });
 
   @override
-  List<Object?> get props => [filter];
+  List<Object?> get props => [filter, userId, isAdmin, isVisitor];
 }
 
 /// 刷新项目列表
@@ -57,11 +65,17 @@ class ProjectsLoadMoreRequested extends ProjectEvent {
 /// 加载项目详情
 class ProjectDetailRequested extends ProjectEvent {
   final int projectId;
+  final String? userId;     // 当前用户ID，用于权限检查
+  final bool isAdmin;       // 是否为管理员
 
-  const ProjectDetailRequested(this.projectId);
+  const ProjectDetailRequested(
+    this.projectId, {
+    this.userId,
+    this.isAdmin = false,
+  });
 
   @override
-  List<Object?> get props => [projectId];
+  List<Object?> get props => [projectId, userId, isAdmin];
 }
 
 /// 清除当前项目详情

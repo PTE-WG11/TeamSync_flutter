@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../config/routes.dart';
 import '../../../../config/theme.dart';
-import '../../data/repositories/mock_team_repository.dart';
+import '../../../../core/permissions/permission_widgets.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../data/repositories/team_repository_impl.dart';
 import '../../domain/entities/team_member.dart';
 import '../bloc/team_bloc.dart';
 import '../bloc/team_event.dart';
@@ -19,7 +21,7 @@ class TeamMembersPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => TeamBloc(
-        repository: MockTeamRepository(),
+        repository: TeamRepositoryImpl(),
       )..add(const TeamMembersLoaded()),
       child: const _TeamMembersView(),
     );
@@ -69,6 +71,9 @@ class _TeamMembersViewState extends State<_TeamMembersView> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final authState = context.watch<AuthBloc>().state;
+    final isAdmin = authState is AuthAuthenticated && authState.isAdmin;
+    
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -78,23 +83,26 @@ class _TeamMembersViewState extends State<_TeamMembersView> {
             Text('团队成员', style: AppTypography.h3),
             const SizedBox(height: 4),
             Text(
-              '管理团队成员，分配角色权限',
+              isAdmin ? '管理团队成员，分配角色权限' : '查看团队成员，发起对话',
               style: AppTypography.bodySmall.copyWith(
                 color: AppColors.textSecondary,
               ),
             ),
           ],
         ),
-        ElevatedButton.icon(
-          onPressed: () => _showInviteDialog(context),
-          icon: const Icon(Icons.person_add, size: 18),
-          label: const Text('邀请成员'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: AppColors.textInverse,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
+        // 仅管理员可见邀请按钮
+        AdminOnly(
+          child: ElevatedButton.icon(
+            onPressed: () => _showInviteDialog(context),
+            icon: const Icon(Icons.person_add, size: 18),
+            label: const Text('邀请成员'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textInverse,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
             ),
           ),
         ),
@@ -426,6 +434,9 @@ class _TeamMembersViewState extends State<_TeamMembersView> {
   }
 
   Widget _buildMemberRow(BuildContext context, TeamMember member) {
+    final authState = context.read<AuthBloc>().state;
+    final isAdmin = authState is AuthAuthenticated && authState.isAdmin;
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
@@ -494,38 +505,41 @@ class _TeamMembersViewState extends State<_TeamMembersView> {
           ),
           // 操作按钮
           SizedBox(
-            width: 200,
+            width: isAdmin ? 200 : 100, // 成员显示更少按钮
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 查看任务
+                // 查看任务 - 所有成员可见
                 _buildActionButton(
                   icon: Icons.task_alt,
                   tooltip: '查看任务',
                   onTap: () => _viewMemberTasks(context, member),
                 ),
                 const SizedBox(width: 8),
-                // 对话（预留）
+                // 对话 - 所有成员可见
                 _buildActionButton(
                   icon: Icons.chat_bubble_outline,
                   tooltip: '发起对话',
                   onTap: () => _startChat(context, member),
                 ),
-                const SizedBox(width: 8),
-                // 修改角色
-                _buildActionButton(
-                  icon: Icons.edit,
-                  tooltip: '修改角色',
-                  onTap: () => _showEditRoleDialog(context, member),
-                ),
-                const SizedBox(width: 8),
-                // 移除
-                _buildActionButton(
-                  icon: Icons.person_remove,
-                  tooltip: '移除成员',
-                  color: AppColors.error,
-                  onTap: () => _showRemoveConfirmDialog(context, member),
-                ),
+                // 以下仅管理员可见
+                if (isAdmin) ...[
+                  const SizedBox(width: 8),
+                  // 修改角色
+                  _buildActionButton(
+                    icon: Icons.edit,
+                    tooltip: '修改角色',
+                    onTap: () => _showEditRoleDialog(context, member),
+                  ),
+                  const SizedBox(width: 8),
+                  // 移除
+                  _buildActionButton(
+                    icon: Icons.person_remove,
+                    tooltip: '移除成员',
+                    color: AppColors.error,
+                    onTap: () => _showRemoveConfirmDialog(context, member),
+                  ),
+                ],
               ],
             ),
           ),

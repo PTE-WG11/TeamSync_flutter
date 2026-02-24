@@ -416,4 +416,131 @@ class MockTaskRepository implements TaskRepository {
       ),
     ];
   }
+
+  @override
+  Future<Task> updateTaskStatus(int taskId, UpdateTaskStatusRequest request) async {
+    await _simulateDelay(null);
+
+    final index = _tasks.indexWhere((t) => t['id'] == taskId);
+    if (index == -1) {
+      throw Exception('任务不存在');
+    }
+
+    final task = _tasks[index];
+    
+    _tasks[index] = {
+      ...task,
+      'status': request.status,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    return TaskModel.fromJson(_tasks[index]);
+  }
+
+  @override
+  Future<TaskProgressStats> getTaskProgress(int projectId) async {
+    await _simulateDelay(null);
+
+    final tasks = _tasks.where((t) => t['project_id'] == projectId).toList();
+    final total = tasks.length;
+    final completed = tasks.where((t) => t['status'] == 'completed').length;
+    final inProgress = tasks.where((t) => t['status'] == 'in_progress').length;
+    final pending = tasks.where((t) => t['status'] == 'pending').length;
+    final planning = tasks.where((t) => t['status'] == 'planning').length;
+    final completionRate = total > 0 ? completed / total : 0.0;
+
+    return TaskProgressStats(
+      total: total,
+      completed: completed,
+      inProgress: inProgress,
+      pending: pending,
+      planning: planning,
+      completionRate: completionRate,
+    );
+  }
+
+  // ==================== 全局任务查询（跨项目）====================
+
+  @override
+  Future<List<Task>> getGlobalListTasks({TaskFilter? filter}) async {
+    await _simulateDelay(null);
+    
+    var tasks = _tasks
+        .where((t) => t['level'] == 1)
+        .map((json) => TaskModel.fromJson(json))
+        .toList();
+    
+    return _applyFilter(tasks, filter);
+  }
+
+  @override
+  Future<List<KanbanColumnData>> getGlobalKanbanTasks({TaskFilter? filter}) async {
+    await _simulateDelay(null);
+    
+    final allTasks = _tasks.map((json) => TaskModel.fromJson(json)).toList();
+    final filteredTasks = _applyFilter(allTasks, filter);
+    
+    // 构建看板列数据
+    final columns = [
+      KanbanColumnData(id: 'planning', title: '规划中', color: '#94A3B8', tasks: []),
+      KanbanColumnData(id: 'pending', title: '待处理', color: '#F59E0B', tasks: []),
+      KanbanColumnData(id: 'in_progress', title: '进行中', color: '#0D9488', tasks: []),
+      KanbanColumnData(id: 'completed', title: '已完成', color: '#10B981', tasks: []),
+    ];
+    
+    for (final task in filteredTasks) {
+      final column = columns.firstWhere(
+        (c) => c.id == task.status,
+        orElse: () => columns[0],
+      );
+      column.tasks.add(task);
+    }
+    
+    return columns;
+  }
+
+  @override
+  Future<List<Task>> getGlobalGanttTasks({TaskFilter? filter}) async {
+    await _simulateDelay(null);
+    
+    var tasks = _tasks
+        .where((t) => t['level'] == 1)
+        .map((json) => TaskModel.fromJson(json))
+        .toList();
+    
+    return _applyFilter(tasks, filter);
+  }
+
+  @override
+  Future<List<Task>> getGlobalCalendarTasks({TaskFilter? filter}) async {
+    await _simulateDelay(null);
+    
+    var tasks = _tasks.map((json) => TaskModel.fromJson(json)).toList();
+    return _applyFilter(tasks, filter);
+  }
+
+  List<Task> _applyFilter(List<Task> tasks, TaskFilter? filter) {
+    if (filter == null) return tasks;
+    
+    // 应用项目过滤
+    if (filter.projectId != null) {
+      tasks = tasks.where((t) => t.projectId == filter.projectId).toList();
+    }
+    
+    // 应用状态过滤
+    if (filter.status != null && filter.status!.isNotEmpty) {
+      tasks = tasks.where((t) => t.status == filter.status).toList();
+    }
+    
+    // 应用搜索过滤
+    if (filter.search != null && filter.search!.isNotEmpty) {
+      final searchLower = filter.search!.toLowerCase();
+      tasks = tasks.where((t) {
+        return t.title.toLowerCase().contains(searchLower) ||
+            (t.description?.toLowerCase().contains(searchLower) ?? false);
+      }).toList();
+    }
+    
+    return tasks;
+  }
 }

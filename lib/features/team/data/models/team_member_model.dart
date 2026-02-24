@@ -14,15 +14,33 @@ class TeamMemberModel extends TeamMember {
   });
 
   factory TeamMemberModel.fromJson(Map<String, dynamic> json) {
+    // 安全解析 task_count（后端返回可能是 string 或 int）
+    int parseTaskCount(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    // 安全解析日期
+    DateTime parseDateTime(dynamic value) {
+      if (value == null) return DateTime.now();
+      try {
+        return DateTime.parse(value as String);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+
     return TeamMemberModel(
-      id: json['id'] as int,
-      username: json['username'] as String,
-      email: json['email'] as String,
-      role: json['role'] as String,
-      roleDisplay: json['role_display'] as String,
+      id: json['id'] as int? ?? 0,
+      username: json['username'] as String? ?? '未知用户',
+      email: json['email'] as String? ?? '',
+      role: json['role'] as String? ?? 'member',
+      roleDisplay: json['role_display'] as String? ?? '成员',
       avatar: json['avatar'] as String?,
-      taskCount: json['task_count'] as int? ?? 0,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      taskCount: parseTaskCount(json['task_count']),
+      createdAt: parseDateTime(json['created_at']),
     );
   }
 

@@ -9,10 +9,18 @@ import '../features/auth/presentation/pages/register_page.dart';
 import '../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import '../features/dashboard/presentation/pages/admin_dashboard_page.dart';
 import '../features/dashboard/presentation/pages/member_dashboard_page.dart';
+import '../features/dashboard/data/repositories/dashboard_repository_impl.dart';
 import '../features/project/presentation/bloc/project_bloc.dart';
 import '../features/project/presentation/pages/project_detail_page.dart';
 import '../features/project/presentation/pages/project_list_page.dart';
+import '../features/project/data/repositories/project_repository_impl.dart';
+import '../features/task/data/repositories/task_repository_impl.dart';
+import '../features/team/data/repositories/team_repository_impl.dart';
+import '../features/team/presentation/bloc/team_bloc.dart';
 import '../features/team/presentation/pages/team_members_page.dart';
+import '../features/task/presentation/pages/task_management_page.dart';
+import '../features/task/presentation/bloc/task_bloc.dart';
+import '../core/permissions/permission_service.dart';
 import '../shared/widgets/layout/main_layout.dart';
 import 'theme.dart';
 
@@ -99,10 +107,29 @@ class AppRoutes {
         ),
         // 主布局包裹的页面
         ShellRoute(
-          builder: (context, state, child) => BlocProvider(
-            create: (context) => DashboardBloc(),
-            child: MainLayout(child: child),
-          ),
+          builder: (context, state, child) {
+            // 创建共享的 Repository 实例
+            final dashboardRepository = DashboardRepositoryImpl();
+            final projectRepository = ProjectRepositoryImpl();
+            final taskRepository = TaskRepositoryImpl();
+            
+            return MultiBlocProvider(
+              providers: [
+                BlocProvider(
+                  create: (context) => DashboardBloc(
+                    repository: dashboardRepository,
+                  ),
+                ),
+                BlocProvider(
+                  create: (context) => ProjectBloc(
+                    repository: projectRepository,
+                    taskRepository: taskRepository,
+                  ),
+                ),
+              ],
+              child: MainLayout(child: child),
+            );
+          },
           routes: [
             // 首页（仪表盘）- 根据角色显示不同页面
             GoRoute(
@@ -128,12 +155,19 @@ class AppRoutes {
             GoRoute(
               path: projects,
               name: 'projects',
-              pageBuilder: (context, state) => NoTransitionPage(
-                child: BlocProvider(
-                  create: (_) => ProjectBloc(),
-                  child: const ProjectListPage(),
-                ),
-              ),
+              pageBuilder: (context, state) {
+                final projectRepository = ProjectRepositoryImpl();
+                final taskRepository = TaskRepositoryImpl();
+                return NoTransitionPage(
+                  child: BlocProvider(
+                    create: (_) => ProjectBloc(
+                      repository: projectRepository,
+                      taskRepository: taskRepository,
+                    ),
+                    child: const ProjectListPage(),
+                  ),
+                );
+              },
             ),
             // 项目详情
             GoRoute(
@@ -141,9 +175,14 @@ class AppRoutes {
               name: 'projectDetail',
               pageBuilder: (context, state) {
                 final projectId = int.parse(state.pathParameters['id']!);
+                final projectRepository = ProjectRepositoryImpl();
+                final taskRepository = TaskRepositoryImpl();
                 return NoTransitionPage(
                   child: BlocProvider(
-                    create: (_) => ProjectBloc(),
+                    create: (_) => ProjectBloc(
+                      repository: projectRepository,
+                      taskRepository: taskRepository,
+                    ),
                     child: ProjectDetailPage(projectId: projectId),
                   ),
                 );
@@ -157,23 +196,46 @@ class AppRoutes {
                 child: PlaceholderPage(title: '日历视图'),
               ),
             ),
-            // 成员管理（仅管理员可访问）
+            // 任务管理
+            GoRoute(
+              path: tasks,
+              name: 'tasks',
+              pageBuilder: (context, state) {
+                final taskRepository = TaskRepositoryImpl();
+                final permissionService = context.read<PermissionService>();
+                return NoTransitionPage(
+                  child: BlocProvider(
+                    create: (_) => TaskBloc(
+                      taskRepository: taskRepository,
+                      permissionService: permissionService,
+                    ),
+                    child: const TaskManagementPage(),
+                  ),
+                );
+              },
+            ),
+            // 成员管理（管理员和成员都可访问，但权限不同）
             GoRoute(
               path: members,
               name: 'members',
               pageBuilder: (context, state) {
                 final authState = context.read<AuthBloc>().state;
-                final isAdmin = authState is AuthAuthenticated && authState.isAdmin;
+                final isAuthenticated = authState is AuthAuthenticated;
+                final isVisitor = isAuthenticated && authState.isVisitor;
                 
-                if (!isAdmin) {
-                  // 非管理员重定向到首页
+                // 访客不能访问成员页面
+                if (isVisitor) {
                   return const NoTransitionPage(
                     child: ForbiddenPage(),
                   );
                 }
                 
-                return const NoTransitionPage(
-                  child: TeamMembersPage(),
+                final teamRepository = TeamRepositoryImpl();
+                return NoTransitionPage(
+                  child: BlocProvider(
+                    create: (_) => TeamBloc(repository: teamRepository),
+                    child: const TeamMembersPage(),
+                  ),
                 );
               },
             ),

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../config/routes.dart';
 import '../../../../config/theme.dart';
+// import '../../../../core/permissions/permission_widgets.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../task/presentation/widgets/create_task_dialog.dart';
 import '../../../task/presentation/widgets/task_list_widget.dart';
 import '../bloc/project_bloc.dart';
@@ -25,18 +27,23 @@ class ProjectDetailPage extends StatefulWidget {
 
 class _ProjectDetailPageState extends State<ProjectDetailPage>
     with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+  TabController? _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
     _loadProjectDetail();
+  }
+
+  void _initTabController() {
+    if (_tabController == null) {
+      _tabController = TabController(length: 4, vsync: this);
+    }
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _tabController?.dispose();
     super.dispose();
   }
 
@@ -44,12 +51,20 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
   void didUpdateWidget(ProjectDetailPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.projectId != widget.projectId) {
-      _loadProjectDetail();
+      // 延迟执行，确保 context 可用
+      Future.microtask(() => _loadProjectDetail());
     }
   }
 
   void _loadProjectDetail() {
-    context.read<ProjectBloc>().add(ProjectDetailRequested(widget.projectId));
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) {
+      context.read<ProjectBloc>().add(ProjectDetailRequested(
+        widget.projectId,
+        userId: authState.userId,
+        isAdmin: authState.isAdmin,
+      ));
+    }
   }
 
   @override
@@ -93,7 +108,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
           ),
         ),
         if (state is ProjectDetailLoadSuccess) ...[
-          // 创建任务按钮
+          // 创建任务按钮 - 所有团队成员都可见
           ElevatedButton.icon(
             onPressed: () => _showCreateTaskDialog(context, state.project),
             icon: const Icon(Icons.add, size: 18),
@@ -108,11 +123,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
             ),
           ),
           const SizedBox(width: 12),
-          // 更多操作
-          IconButton(
-            onPressed: () => _showProjectActions(state.project),
-            icon: const Icon(Icons.more_vert),
-          ),
+          // 更多操作 - 仅管理员可见
+          if (state.isAdmin)
+            IconButton(
+              onPressed: () => _showProjectActions(state.project, state.isAdmin),
+              icon: const Icon(Icons.more_vert),
+            ),
         ],
       ],
     );
@@ -125,6 +141,10 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
     }
 
     if (state is ProjectDetailLoadFailure) {
+      // 无权限访问时显示专用页面
+      if (state.isForbidden) {
+        return _buildForbiddenView();
+      }
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -139,11 +159,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () {
-                context.read<ProjectBloc>().add(
-                      ProjectDetailRequested(widget.projectId),
-                    );
-              },
+              onPressed: _loadProjectDetail,
               child: const Text('重新加载'),
             ),
           ],
@@ -156,9 +172,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
 
       return RefreshIndicator(
         onRefresh: () async {
-          context.read<ProjectBloc>().add(
-                ProjectDetailRequested(widget.projectId),
-              );
+          _loadProjectDetail();
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -178,6 +192,44 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
     }
 
     return const Center(child: CircularProgressIndicator());
+  }
+
+  /// 构建无权限访问视图
+  Widget _buildForbiddenView() {
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 400),
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.block,
+              size: 64,
+              color: AppColors.error.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              '无访问权限',
+              style: AppTypography.h2,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '您不是此项目的成员，无法查看项目详情',
+              style: AppTypography.body.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: () => context.go(AppRoutes.projects),
+              child: const Text('返回项目列表'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// 构建项目信息卡片
@@ -403,6 +455,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
 
   /// 构建任务区域（Tab切换）
   Widget _buildTaskSection(ProjectDetailLoadSuccess state) {
+    _initTabController();
+    
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -426,7 +480,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
                     borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: TabBar(
-                    controller: _tabController,
+                    controller: _tabController!,
                     isScrollable: true,
                     tabAlignment: TabAlignment.start,
                     indicator: BoxDecoration(
@@ -456,7 +510,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
           SizedBox(
             height: 600, // 固定高度
             child: TabBarView(
-              controller: _tabController,
+              controller: _tabController!,
               children: [
                 // 列表视图
                 _buildListView(state),
@@ -547,14 +601,32 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
   void _showCreateTaskDialog(BuildContext context, dynamic project) {
     showDialog(
       context: context,
-      builder: (context) => CreateTaskDialog(
+      builder: (dialogContext) => CreateTaskDialog(
         projectId: project.id,
         members: project.members,
+        onCreate: ({
+          required String title,
+          String? description,
+          required int assigneeId,
+          String priority = 'medium',
+          DateTime? startDate,
+          DateTime? endDate,
+        }) {
+          context.read<ProjectBloc>().add(ProjectTaskCreateRequested(
+                projectId: project.id,
+                title: title,
+                description: description,
+                assigneeId: assigneeId,
+                priority: priority,
+                startDate: startDate,
+                endDate: endDate,
+              ));
+        },
       ),
     );
   }
 
-  void _showProjectActions(dynamic project) {
+  void _showProjectActions(dynamic project, bool isAdmin) {
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
@@ -562,33 +634,44 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 仅管理员可见的操作
+            if (isAdmin) ...[
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('编辑项目'),
+                onTap: () {
+                  Navigator.pop(context);
+                },
+              ),
+              if (!project.isArchived)
+                ListTile(
+                  leading: const Icon(Icons.archive_outlined),
+                  title: const Text('归档项目'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showArchiveConfirm(project);
+                  },
+                ),
+              if (project.isArchived)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline,
+                      color: AppColors.error),
+                  title: const Text('删除项目',
+                      style: TextStyle(color: AppColors.error)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showDeleteConfirm(project);
+                  },
+                ),
+            ],
+            // 所有成员都可见
             ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('编辑项目'),
+              leading: const Icon(Icons.visibility_outlined),
+              title: const Text('查看项目信息'),
               onTap: () {
                 Navigator.pop(context);
               },
             ),
-            if (!project.isArchived)
-              ListTile(
-                leading: const Icon(Icons.archive_outlined),
-                title: const Text('归档项目'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showArchiveConfirm(project);
-                },
-              ),
-            if (project.isArchived)
-              ListTile(
-                leading: const Icon(Icons.delete_outline,
-                    color: AppColors.error),
-                title: const Text('删除项目',
-                    style: TextStyle(color: AppColors.error)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showDeleteConfirm(project);
-                },
-              ),
           ],
         ),
       ),

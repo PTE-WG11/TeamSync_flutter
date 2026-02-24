@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'config/routes.dart';
 import 'config/theme.dart';
+import 'core/permissions/permission_service.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 
 /// 应用程序根组件
@@ -32,8 +33,13 @@ class _TeamSyncAppState extends State<TeamSyncApp> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider.value(
-      value: _authBloc,
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider.value(value: _authBloc),
+        RepositoryProvider(
+          create: (context) => PermissionService(_authBloc),
+        ),
+      ],
       child: MaterialApp.router(
         title: 'TeamSync',
         debugShowCheckedModeBanner: false,

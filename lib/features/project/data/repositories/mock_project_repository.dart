@@ -175,16 +175,29 @@ class MockProjectRepository {
 
   /// 获取项目列表
   /// GET /projects/
+  /// 
+  /// [userId] - 当前用户ID，用于权限过滤（访客需要过滤，成员和管理员都能看到所有项目）
+  /// [isAdmin] - 是否为管理员
+  /// [isVisitor] - 是否为访客，访客看不到任何项目
   Future<List<Project>> getProjects({
     String? status,
     bool includeArchived = false,
     String? search,
     int page = 1,
     int pageSize = 20,
+    String? userId,
+    bool isAdmin = false,
+    bool isVisitor = false,
   }) async {
     // await Future.delayed(const Duration(milliseconds: 500));
 
     var result = List<Project>.from(_projects);
+
+    // 权限过滤：访客看不到任何项目
+    if (isVisitor) {
+      return [];
+    }
+    // 成员和管理员都能看到所有项目（根据 PRD 更新）
 
     // 状态过滤
     if (status != null && status.isNotEmpty) {
@@ -217,13 +230,41 @@ class MockProjectRepository {
     return result;
   }
 
+  /// 检查用户是否是项目成员
+  Future<bool> isUserMemberOfProject(int projectId, String? userId) async {
+    if (userId == null) return false;
+    
+    final project = await getProjectById(projectId);
+    if (project == null) return false;
+    
+    final userIdInt = int.tryParse(userId);
+    if (userIdInt == null) return false;
+    
+    // 检查是否是成员或创建者
+    return project.members.any((m) => m.id == userIdInt) || 
+           project.createdBy?.id == userIdInt;
+  }
+
   /// 获取项目总数
+  /// 
+  /// [userId] - 当前用户ID，用于权限过滤
+  /// [isAdmin] - 是否为管理员
+  /// [isVisitor] - 是否为访客
   Future<int> getProjectCount({
     String? status,
     bool includeArchived = false,
     String? search,
+    String? userId,
+    bool isAdmin = false,
+    bool isVisitor = false,
   }) async {
     var result = List<Project>.from(_projects);
+
+    // 权限过滤：访客看不到任何项目
+    if (isVisitor) {
+      return 0;
+    }
+    // 成员和管理员都能看到所有项目
 
     if (status != null && status.isNotEmpty) {
       result = result.where((p) => p.status == status).toList();

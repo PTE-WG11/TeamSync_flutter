@@ -14,6 +14,8 @@ import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
 import '../../../project/presentation/bloc/project_bloc.dart';
 import '../../../project/presentation/widgets/create_project_dialog.dart';
+import '../../../project/data/repositories/project_repository_impl.dart';
+import '../../../task/data/repositories/task_repository_impl.dart';
 
 /// 管理员首页仪表盘
 /// 功能：项目进度卡片（所有项目）、逾期预警、快捷创建按钮
@@ -586,7 +588,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       context: context,
       builder: (dialogContext) => BlocProvider(
         // 因为仪表盘本身没有 ProjectBloc，这里我们需要创建一个新的实例
-        create: (context) => ProjectBloc(),
+        create: (context) => ProjectBloc(
+          repository: ProjectRepositoryImpl(),
+          taskRepository: TaskRepositoryImpl(),
+        ),
         child: const CreateProjectDialog(),
       ),
     ).then((_) {

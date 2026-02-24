@@ -1,19 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../config/theme.dart';
 import '../../../project/domain/entities/project.dart';
-import '../../../project/presentation/bloc/project_bloc.dart';
-import '../../../project/presentation/bloc/project_event.dart';
+
+/// 创建任务回调
+typedef CreateTaskCallback = void Function({
+  required String title,
+  String? description,
+  required int assigneeId,
+  String priority,
+  DateTime? startDate,
+  DateTime? endDate,
+});
 
 /// 创建任务对话框
 class CreateTaskDialog extends StatefulWidget {
   final int projectId;
   final List<ProjectMember> members;
+  final CreateTaskCallback onCreate;
 
   const CreateTaskDialog({
     super.key,
     required this.projectId,
     required this.members,
+    required this.onCreate,
   });
 
   @override
@@ -474,15 +483,14 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
       return;
     }
 
-    context.read<ProjectBloc>().add(ProjectTaskCreateRequested(
-          projectId: widget.projectId,
-          title: _titleController.text.trim(),
-          description: _descriptionController.text.trim(),
-          assigneeId: _selectedAssigneeId!,
-          priority: _selectedPriority,
-          startDate: _startDate,
-          endDate: _endDate,
-        ));
+    widget.onCreate(
+      title: _titleController.text.trim(),
+      description: _descriptionController.text.trim(),
+      assigneeId: _selectedAssigneeId!,
+      priority: _selectedPriority,
+      startDate: _startDate,
+      endDate: _endDate,
+    );
 
     Navigator.pop(context);
   }

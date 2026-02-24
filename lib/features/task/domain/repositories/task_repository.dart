@@ -45,6 +45,59 @@ abstract class TaskRepository {
   /// 
   /// [taskId] - 任务ID
   Future<List<TaskHistory>> getTaskHistory(int taskId);
+
+  /// 更新任务状态
+  /// 
+  /// [taskId] - 任务ID
+  /// [request] - 状态更新请求
+  Future<Task> updateTaskStatus(int taskId, UpdateTaskStatusRequest request);
+
+  /// 获取项目任务进度统计
+  /// 
+  /// [projectId] - 项目ID
+  Future<TaskProgressStats> getTaskProgress(int projectId);
+
+  // ==================== 全局任务查询（跨项目）====================
+
+  /// 获取全局列表视图数据
+  /// 
+  /// 数据范围：管理员返回所有任务，成员返回自己的任务
+  /// [filter] - 筛选条件
+  Future<List<Task>> getGlobalListTasks({TaskFilter? filter});
+
+  /// 获取全局看板数据
+  /// 
+  /// 数据范围：管理员返回所有任务，成员返回自己的任务
+  /// [filter] - 筛选条件
+  /// 返回看板列数据（包含任务列表）
+  Future<List<KanbanColumnData>> getGlobalKanbanTasks({TaskFilter? filter});
+
+  /// 获取全局甘特图数据
+  /// 
+  /// 数据范围：管理员返回所有主任务，成员返回自己的主任务+子任务树
+  /// [filter] - 筛选条件
+  Future<List<Task>> getGlobalGanttTasks({TaskFilter? filter});
+
+  /// 获取全局日历数据
+  /// 
+  /// 数据范围：管理员返回所有任务，成员返回自己的任务
+  /// [filter] - 筛选条件
+  Future<List<Task>> getGlobalCalendarTasks({TaskFilter? filter});
+}
+
+/// 看板列数据（后端直接返回）
+class KanbanColumnData {
+  final String id;
+  final String title;
+  final String color;
+  final List<Task> tasks;
+
+  KanbanColumnData({
+    required this.id,
+    required this.title,
+    required this.color,
+    required this.tasks,
+  });
 }
 
 /// 任务变更历史

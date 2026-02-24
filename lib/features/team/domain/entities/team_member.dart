@@ -67,24 +67,36 @@ class TeamMember extends Equatable {
 class TeamMemberFilter extends Equatable {
   final String? role;
   final String? search;
+  final String? ordering;  // 排序字段
+  final int? page;         // 页码
+  final int? pageSize;     // 每页数量
 
   const TeamMemberFilter({
     this.role,
     this.search,
+    this.ordering,
+    this.page,
+    this.pageSize,
   });
 
   TeamMemberFilter copyWith({
     String? role,
     String? search,
+    String? ordering,
+    int? page,
+    int? pageSize,
   }) {
     return TeamMemberFilter(
       role: role ?? this.role,
       search: search ?? this.search,
+      ordering: ordering ?? this.ordering,
+      page: page ?? this.page,
+      pageSize: pageSize ?? this.pageSize,
     );
   }
 
   @override
-  List<Object?> get props => [role, search];
+  List<Object?> get props => [role, search, ordering, page, pageSize];
 }
 
 /// 邀请成员请求

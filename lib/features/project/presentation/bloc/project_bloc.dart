@@ -1,23 +1,23 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../data/repositories/mock_project_repository.dart';
 import '../../domain/entities/project.dart';
-import '../../../task/data/repositories/mock_task_repository.dart';
+import '../../domain/repositories/project_repository.dart';
 import '../../../task/domain/entities/task.dart';
+import '../../../task/domain/repositories/task_repository.dart';
 import 'project_event.dart';
 import 'project_state.dart';
 
 /// 项目 BLoC
 class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
-  final MockProjectRepository _repository;
-  final MockTaskRepository _taskRepository;
+  final ProjectRepository _repository;
+  final TaskRepository _taskRepository;
   static const int _pageSize = 20;
 
   ProjectBloc({
-    MockProjectRepository? repository,
-    MockTaskRepository? taskRepository,
-  })  : _repository = repository ?? MockProjectRepository(),
-        _taskRepository = taskRepository ?? MockTaskRepository(),
+    required ProjectRepository repository,
+    required TaskRepository taskRepository,
+  })  : _repository = repository,
+        _taskRepository = taskRepository,
         super(ProjectInitial()) {
     on<ProjectsLoadRequested>(_onProjectsLoadRequested);
     on<ProjectsRefreshRequested>(_onProjectsRefreshRequested);
@@ -54,12 +54,18 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
         search: event.filter.search,
         page: 1,
         pageSize: _pageSize,
+        userId: event.userId,
+        isAdmin: event.isAdmin,
+        isVisitor: event.isVisitor,
       );
 
       final totalCount = await _repository.getProjectCount(
         status: event.filter.status,
         includeArchived: event.filter.includeArchived,
         search: event.filter.search,
+        userId: event.userId,
+        isAdmin: event.isAdmin,
+        isVisitor: event.isVisitor,
       );
 
       emit(ProjectsLoadSuccess(
@@ -68,6 +74,9 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
         hasMore: projects.length < totalCount,
         currentPage: 1,
         totalCount: totalCount,
+        userId: event.userId,
+        isAdmin: event.isAdmin,
+        isVisitor: event.isVisitor,
       ));
     } catch (e) {
       emit(ProjectsLoadFailure(message: '加载项目列表失败: $e'));
@@ -80,9 +89,15 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
   ) async {
     final currentState = state;
     ProjectFilter currentFilter = const ProjectFilter();
+    String? currentUserId;
+    bool currentIsAdmin = false;
+    bool currentIsVisitor = false;
 
     if (currentState is ProjectsLoadSuccess) {
       currentFilter = currentState.filter;
+      currentUserId = currentState.userId;
+      currentIsAdmin = currentState.isAdmin;
+      currentIsVisitor = currentState.isVisitor;
     }
 
     emit(ProjectsLoadInProgress());
@@ -94,12 +109,18 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
         search: currentFilter.search,
         page: 1,
         pageSize: _pageSize,
+        userId: currentUserId,
+        isAdmin: currentIsAdmin,
+        isVisitor: currentIsVisitor,
       );
 
       final totalCount = await _repository.getProjectCount(
         status: currentFilter.status,
         includeArchived: currentFilter.includeArchived,
         search: currentFilter.search,
+        userId: currentUserId,
+        isAdmin: currentIsAdmin,
+        isVisitor: currentIsVisitor,
       );
 
       emit(ProjectsLoadSuccess(
@@ -108,6 +129,9 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
         hasMore: projects.length < totalCount,
         currentPage: 1,
         totalCount: totalCount,
+        userId: currentUserId,
+        isAdmin: currentIsAdmin,
+        isVisitor: currentIsVisitor,
       ));
     } catch (e) {
       emit(ProjectsLoadFailure(message: '刷新项目列表失败: $e'));
@@ -118,6 +142,17 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
     ProjectsFilterChanged event,
     Emitter<ProjectState> emit,
   ) async {
+    final currentState = state;
+    String? currentUserId;
+    bool currentIsAdmin = false;
+    bool currentIsVisitor = false;
+
+    if (currentState is ProjectsLoadSuccess) {
+      currentUserId = currentState.userId;
+      currentIsAdmin = currentState.isAdmin;
+      currentIsVisitor = currentState.isVisitor;
+    }
+
     emit(ProjectsLoadInProgress());
 
     try {
@@ -127,12 +162,18 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
         search: event.filter.search,
         page: 1,
         pageSize: _pageSize,
+        userId: currentUserId,
+        isAdmin: currentIsAdmin,
+        isVisitor: currentIsVisitor,
       );
 
       final totalCount = await _repository.getProjectCount(
         status: event.filter.status,
         includeArchived: event.filter.includeArchived,
         search: event.filter.search,
+        userId: currentUserId,
+        isAdmin: currentIsAdmin,
+        isVisitor: currentIsVisitor,
       );
 
       emit(ProjectsLoadSuccess(
@@ -141,6 +182,9 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
         hasMore: projects.length < totalCount,
         currentPage: 1,
         totalCount: totalCount,
+        userId: currentUserId,
+        isAdmin: currentIsAdmin,
+        isVisitor: currentIsVisitor,
       ));
     } catch (e) {
       emit(ProjectsLoadFailure(message: '筛选项目失败: $e'));
@@ -176,6 +220,9 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
         search: currentState.filter.search,
         page: nextPage,
         pageSize: _pageSize,
+        userId: currentState.userId,
+        isAdmin: currentState.isAdmin,
+        isVisitor: currentState.isVisitor,
       );
 
       final allProjects = [...currentState.projects, ...moreProjects];
@@ -201,13 +248,34 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
     try {
       final project = await _repository.getProjectById(event.projectId);
 
-      if (project != null) {
-        // 加载任务列表
-        final tasks = await _taskRepository.getProjectTasks(event.projectId);
-        emit(ProjectDetailLoadSuccess(project, tasks: tasks));
-      } else {
+      if (project == null) {
         emit(ProjectDetailLoadFailure(message: '项目不存在'));
+        return;
       }
+
+      // 权限检查：非管理员只能访问自己参与的项目
+      if (!event.isAdmin && event.userId != null) {
+        final hasAccess = await _repository.isUserMemberOfProject(
+          event.projectId,
+          event.userId,
+        );
+        if (!hasAccess) {
+          emit(const ProjectDetailLoadFailure(
+            message: '无权限访问此项目',
+            isForbidden: true,
+          ));
+          return;
+        }
+      }
+
+      // 加载任务列表
+      final tasks = await _taskRepository.getProjectTasks(event.projectId);
+      emit(ProjectDetailLoadSuccess(
+        project,
+        tasks: tasks,
+        userId: event.userId,
+        isAdmin: event.isAdmin,
+      ));
     } catch (e) {
       emit(ProjectDetailLoadFailure(message: '加载项目详情失败: $e'));
     }

@@ -84,26 +84,43 @@ class ProjectModel extends Project {
   });
 
   factory ProjectModel.fromJson(Map<String, dynamic> json) {
+    // 安全解析 created_by（可能是对象或int）
+    ProjectMember? createdBy;
+    final createdByData = json['created_by'];
+    if (createdByData is Map<String, dynamic>) {
+      createdBy = ProjectMemberModel.fromJson(createdByData);
+    } else if (createdByData is int) {
+      // 如果后端只返回ID，创建一个简化的对象
+      createdBy = ProjectMemberModel(id: createdByData, username: '用户$createdByData', role: 'member');
+    }
+
+    // 安全解析 members 列表
+    List<ProjectMember> members = [];
+    final membersData = json['members'];
+    if (membersData is List) {
+      for (final m in membersData) {
+        if (m is Map<String, dynamic>) {
+          members.add(ProjectMemberModel.fromJson(m));
+        } else if (m is int) {
+          members.add(ProjectMemberModel(id: m, username: '用户$m', role: 'member'));
+        }
+      }
+    }
+
     return ProjectModel(
       id: json['id'] ?? 0,
       title: json['title'] ?? '',
       description: json['description'] ?? '',
       status: json['status'] ?? 'planning',
       progress: (json['progress'] ?? 0.0).toDouble(),
-      memberCount: json['member_count'] ?? 0,
+      memberCount: json['member_count'] ?? members.length,
       overdueTaskCount: json['overdue_task_count'] ?? 0,
       isArchived: json['is_archived'] ?? false,
       startDate: json['start_date'],
       endDate: json['end_date'],
-      createdBy: json['created_by'] != null
-          ? ProjectMemberModel.fromJson(json['created_by'])
-          : null,
-      members: json['members'] != null
-          ? (json['members'] as List)
-              .map((m) => ProjectMemberModel.fromJson(m))
-              .toList()
-          : const [],
-      taskStats: json['task_stats'] != null
+      createdBy: createdBy,
+      members: members,
+      taskStats: json['task_stats'] is Map<String, dynamic>
           ? TaskStatsModel.fromJson(json['task_stats'])
           : null,
       createdAt: json['created_at'],
