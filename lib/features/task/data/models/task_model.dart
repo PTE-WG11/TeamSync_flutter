@@ -76,7 +76,7 @@ class TaskModel extends Task {
     final assigneeName = json['assignee_name'] as String? ?? 
         assigneeData?['username'] as String? ?? 
         assigneeData?['name'] as String? ?? 
-        '未知';
+        '';  // 空字符串表示未分配
     final assigneeAvatar = json['assignee_avatar'] as String? ??
         assigneeData?['avatar'] as String?;
 

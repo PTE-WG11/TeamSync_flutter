@@ -252,8 +252,8 @@ class CreateTaskRequest extends Equatable {
         'assignee_id': assigneeId,
         'status': status,
         'priority': priority,
-        'start_date': startDate != null ? _formatDate(startDate!) : null,
-        'end_date': endDate != null ? _formatDate(endDate!) : null,
+        'start_date': startDate != null ? formatDateTimeForApi(startDate!) : null,
+        'end_date': endDate != null ? formatDateTimeForApi(endDate!) : null,
       };
 
   @override
@@ -291,8 +291,8 @@ class CreateSubTaskRequest extends Equatable {
         'description': description,
         'status': status,
         'priority': priority,
-        'start_date': startDate != null ? _formatDate(startDate!) : null,
-        'end_date': endDate != null ? _formatDate(endDate!) : null,
+        'start_date': startDate != null ? formatDateTimeForApi(startDate!) : null,
+        'end_date': endDate != null ? formatDateTimeForApi(endDate!) : null,
       };
 
   @override
@@ -333,8 +333,8 @@ class UpdateTaskRequest extends Equatable {
     if (status != null) map['status'] = status;
     if (priority != null) map['priority'] = priority;
     if (assigneeId != null) map['assignee_id'] = assigneeId;
-    if (startDate != null) map['start_date'] = _formatDate(startDate!);
-    if (endDate != null) map['end_date'] = _formatDate(endDate!);
+    if (startDate != null) map['start_date'] = formatDateTimeForApi(startDate!);
+    if (endDate != null) map['end_date'] = formatDateTimeForApi(endDate!);
     return map;
   }
 
@@ -441,4 +441,9 @@ class TaskFilter extends Equatable {
 /// 格式化日期为 YYYY-MM-DD 格式
 String _formatDate(DateTime date) {
   return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+}
+
+/// 格式化日期为后端 API 格式 YYYY-MM-DDTHH:mm:ss
+String formatDateTimeForApi(DateTime date) {
+  return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}T${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:${date.second.toString().padLeft(2, '0')}';
 }

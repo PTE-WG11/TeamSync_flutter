@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/permissions/permission_service.dart';
 import '../../domain/entities/task.dart';
 import '../../domain/repositories/task_repository.dart';
@@ -9,6 +10,7 @@ import 'task_state.dart';
 /// 任务管理 BLoC
 class TaskBloc extends Bloc<TaskEvent, TaskState> {
   final TaskRepository _taskRepository;
+  int? _currentUserId;
 
   TaskBloc({
     required TaskRepository taskRepository,
@@ -27,6 +29,21 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     on<TaskExpandToggled>(_onTaskExpandToggled);
     on<SubTaskStatusToggled>(_onSubTaskStatusToggled);
     on<SubTaskCreated>(_onSubTaskCreated);
+    // 看板新功能事件
+    on<UnassignedTaskCreated>(_onUnassignedTaskCreated);
+    on<TaskClaimed>(_onTaskClaimed);
+    
+    // 加载当前用户ID
+    _loadCurrentUserId();
+  }
+  
+  /// 加载当前用户ID
+  Future<void> _loadCurrentUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userIdStr = prefs.getString('user_id');
+    if (userIdStr != null) {
+      _currentUserId = int.tryParse(userIdStr);
+    }
   }
 
   /// 视图模式切换
@@ -82,7 +99,15 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
   /// 加载看板视图数据 - 显示所有任务（主任务+子任务）
   Future<void> _loadKanbanView(Emitter<TaskState> emit) async {
-    final kanbanData = await _taskRepository.getGlobalKanbanTasks(filter: state.filter);
+    // 确保当前用户ID已加载
+    if (_currentUserId == null) {
+      await _loadCurrentUserId();
+    }
+    
+    final kanbanData = await _taskRepository.getGlobalKanbanTasks(
+      filter: state.filter,
+      currentUserId: _currentUserId,
+    );
     
     // 从看板列数据中提取所有任务
     final allTasks = kanbanData.expand((col) => col.tasks).toList();
@@ -390,6 +415,56 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     emit(state.copyWith(expandedTaskIds: expandedIds));
   }
 
+  // ==================== 看板新功能事件处理 ====================
+
+  /// 创建无负责人任务（看板中快速创建）
+  Future<void> _onUnassignedTaskCreated(
+    UnassignedTaskCreated event,
+    Emitter<TaskState> emit,
+  ) async {
+    try {
+      emit(state.copyWith(status: TaskStatus.loading));
+      
+      await _taskRepository.createUnassignedTask(
+        projectId: event.projectId,
+        title: event.title,
+        description: event.description,
+        priority: event.priority,
+      );
+      
+      // 刷新数据
+      add(const TasksLoadRequested());
+    } catch (e) {
+      emit(state.copyWith(
+        status: TaskStatus.failure,
+        errorMessage: '创建任务失败: $e',
+      ));
+    }
+  }
+
+  /// 领取任务（从planning拖出时调用）
+  Future<void> _onTaskClaimed(
+    TaskClaimed event,
+    Emitter<TaskState> emit,
+  ) async {
+    try {
+      emit(state.copyWith(status: TaskStatus.loading));
+      
+      await _taskRepository.claimTask(
+        taskId: event.taskId,
+        status: event.status,
+        endDate: event.endDate,
+      );
+      
+      // 刷新数据
+      add(const TasksLoadRequested());
+    } catch (e) {
+      emit(state.copyWith(
+        status: TaskStatus.failure,
+        errorMessage: '领取任务失败: $e',
+      ));
+    }
+  }
 
   List<KanbanColumn> _buildKanbanColumns(List<Task> tasks) {
     final columns = [

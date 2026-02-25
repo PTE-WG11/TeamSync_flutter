@@ -148,8 +148,8 @@ class TaskRepositoryImpl implements TaskRepository {
         'assignee_id': request.assigneeId,
         'status': request.status ?? 'planning',
         'priority': request.priority ?? 'medium',
-        'start_date': request.startDate != null ? _formatDate(request.startDate!) : null,
-        'end_date': request.endDate != null ? _formatDate(request.endDate!) : null,
+        'start_date': request.startDate != null ? _formatDateTime(request.startDate!) : null,
+        'end_date': request.endDate != null ? _formatDateTime(request.endDate!) : null,
       };
       
       // 使用 /api/tasks/project/{project_id}/create/ 端点
@@ -183,8 +183,8 @@ class TaskRepositoryImpl implements TaskRepository {
         'description': request.description,
         'status': request.status ?? 'planning',
         'priority': request.priority ?? 'medium',
-        'start_date': request.startDate != null ? _formatDate(request.startDate!) : null,
-        'end_date': request.endDate != null ? _formatDate(request.endDate!) : null,
+        'start_date': request.startDate != null ? _formatDateTime(request.startDate!) : null,
+        'end_date': request.endDate != null ? _formatDateTime(request.endDate!) : null,
       };
       
       // 使用 /api/tasks/{id}/subtasks/ 端点
@@ -221,10 +221,10 @@ class TaskRepositoryImpl implements TaskRepository {
       if (request.priority != null) requestData['priority'] = request.priority;
       if (request.assigneeId != null) requestData['assignee_id'] = request.assigneeId;
       if (request.startDate != null) {
-        requestData['start_date'] = _formatDate(request.startDate!);
+        requestData['start_date'] = _formatDateTime(request.startDate!);
       }
       if (request.endDate != null) {
-        requestData['end_date'] = _formatDate(request.endDate!);
+        requestData['end_date'] = _formatDateTime(request.endDate!);
       }
       
       // 使用 /api/tasks/{id}/update/ 端点
@@ -349,7 +349,7 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   @override
-  Future<List<KanbanColumnData>> getGlobalKanbanTasks({TaskFilter? filter}) async {
+  Future<List<KanbanColumnData>> getGlobalKanbanTasks({TaskFilter? filter, int? currentUserId}) async {
     try {
       final queryParams = <String, dynamic>{};
       
@@ -359,6 +359,11 @@ class TaskRepositoryImpl implements TaskRepository {
       
       if (filter?.search != null && filter!.search!.isNotEmpty) {
         queryParams['search'] = filter.search;
+      }
+      
+      // 添加当前用户ID用于排序（自己任务优先）
+      if (currentUserId != null) {
+        queryParams['current_user_id'] = currentUserId;
       }
 
       final response = await _apiClient.get(
@@ -505,9 +510,80 @@ class TaskRepositoryImpl implements TaskRepository {
       changedAt: DateTime.tryParse(json['changed_at'] as String? ?? '') ?? DateTime.now(),
     );
   }
+
+  // ==================== 看板新功能接口实现 ====================
+
+  @override
+  Future<Task> createUnassignedTask({
+    required int projectId,
+    required String title,
+    String? description,
+    String priority = 'medium',
+  }) async {
+    try {
+      final requestData = {
+        'project_id': projectId,
+        'title': title,
+        'description': description,
+        'priority': priority,
+      };
+
+      final response = await _apiClient.post(
+        '/tasks/create-unassigned/',
+        data: requestData,
+      );
+
+      final responseData = response.data as Map<String, dynamic>?;
+      if (responseData == null) {
+        throw Exception('创建任务失败：服务器返回空数据');
+      }
+
+      final data = responseData['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('创建任务失败：响应数据为空');
+      }
+
+      return TaskModel.fromJson(data);
+    } catch (e) {
+      throw Exception('创建任务失败: $e');
+    }
+  }
+
+  @override
+  Future<Task> claimTask({
+    required int taskId,
+    required String status,
+    required DateTime endDate,
+  }) async {
+    try {
+      final requestData = {
+        'status': status,
+        'end_date': _formatDateTime(endDate),
+      };
+
+      final response = await _apiClient.post(
+        '/tasks/$taskId/claim/',
+        data: requestData,
+      );
+
+      final responseData = response.data as Map<String, dynamic>?;
+      if (responseData == null) {
+        throw Exception('领取任务失败：服务器返回空数据');
+      }
+
+      final data = responseData['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('领取任务失败：响应数据为空');
+      }
+
+      return TaskModel.fromJson(data);
+    } catch (e) {
+      throw Exception('领取任务失败: $e');
+    }
+  }
 }
 
-/// 格式化日期为 YYYY-MM-DD 格式
-String _formatDate(DateTime date) {
-  return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+/// 格式化日期时间为后端 API 格式 YYYY-MM-DDTHH:mm:ss
+String _formatDateTime(DateTime date) {
+  return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}T${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:${date.second.toString().padLeft(2, '0')}';
 }

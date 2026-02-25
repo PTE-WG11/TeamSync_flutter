@@ -13,6 +13,7 @@ import '../widgets/kanban_view.dart';
 import '../widgets/list_view.dart';
 import '../widgets/gantt_view.dart';
 import '../widgets/calendar_view.dart';
+import '../widgets/create_unassigned_task_dialog.dart';
 
 /// 任务管理页面
 /// 支持四种视图：列表、看板、甘特图、日历
@@ -164,8 +165,53 @@ class _TaskManagementPageContent extends StatelessWidget {
               ],
             ),
           ),
-
+          // 创建任务按钮
+          ElevatedButton.icon(
+            onPressed: () => _showCreateTaskDialog(context),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('创建任务'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textInverse,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 12,
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  /// 显示创建任务对话框
+  void _showCreateTaskDialog(BuildContext context) {
+    if (projects.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('暂无可用项目，请先创建项目')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => CreateUnassignedTaskDialog(
+        projects: projects,
+        onCreate: ({
+          required int projectId,
+          required String title,
+          String? description,
+          String priority = 'medium',
+        }) {
+          context.read<TaskBloc>().add(
+            UnassignedTaskCreated(
+              projectId: projectId,
+              title: title,
+              description: description,
+              priority: priority,
+            ),
+          );
+        },
       ),
     );
   }

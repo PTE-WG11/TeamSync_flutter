@@ -74,8 +74,9 @@ abstract class TaskRepository {
   /// 
   /// 数据范围：管理员返回所有任务，成员返回自己的任务
   /// [filter] - 筛选条件
+  /// [currentUserId] - 当前用户ID，用于把自己任务排前面
   /// 返回看板列数据（包含任务列表）
-  Future<List<KanbanColumnData>> getGlobalKanbanTasks({TaskFilter? filter});
+  Future<List<KanbanColumnData>> getGlobalKanbanTasks({TaskFilter? filter, int? currentUserId});
 
   /// 获取全局甘特图数据
   /// 
@@ -88,6 +89,33 @@ abstract class TaskRepository {
   /// 数据范围：管理员返回所有任务，成员返回自己的任务
   /// [filter] - 筛选条件
   Future<List<Task>> getGlobalCalendarTasks({TaskFilter? filter});
+
+  // ==================== 看板新功能接口 ====================
+
+  /// 创建无负责人任务（看板快速创建）
+  /// 
+  /// [projectId] - 项目ID
+  /// [title] - 任务标题
+  /// [description] - 任务描述（可选）
+  /// [priority] - 优先级，默认 medium
+  Future<Task> createUnassignedTask({
+    required int projectId,
+    required String title,
+    String? description,
+    String priority = 'medium',
+  });
+
+  /// 领取并激活任务（从planning拖出时调用）
+  /// 
+  /// 自动分配给当前用户，设置开始时间为当前时间
+  /// [taskId] - 任务ID
+  /// [status] - 目标状态（pending 或 in_progress）
+  /// [endDate] - 用户设置的结束时间
+  Future<Task> claimTask({
+    required int taskId,
+    required String status,
+    required DateTime endDate,
+  });
 }
 
 /// 看板列数据（后端直接返回）

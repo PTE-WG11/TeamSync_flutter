@@ -4,7 +4,8 @@ import '../../../../config/theme.dart';
 import '../../domain/entities/task.dart';
 import '../bloc/task_bloc.dart';
 import '../bloc/task_event.dart';
-import 'create_subtask_dialog.dart';
+import 'simple_task_detail_dialog.dart';
+import 'claim_task_time_dialog.dart';
 
 /// 任务看板视图
 class TaskKanbanView extends StatelessWidget {
@@ -30,16 +31,11 @@ class TaskKanbanView extends StatelessWidget {
             columnIndex: index,
             canAcceptFromLeft: !isFirst,
             canAcceptFromRight: !isLast,
-            onTaskDropped: (taskId, newStatus) {
-              context.read<TaskBloc>().add(
-                TaskStatusChanged(
-                  taskId: taskId,
-                  status: newStatus,
-                ),
-              );
+            onTaskDropped: (task, newStatus) {
+              _handleTaskDropped(context, task, newStatus);
             },
-            onCreateSubTask: (parentTask) {
-              _showCreateSubTaskDialog(context, parentTask);
+            onViewTaskDetail: (task) {
+              _showTaskDetailDialog(context, task);
             },
           ),
         );
@@ -47,29 +43,65 @@ class TaskKanbanView extends StatelessWidget {
     );
   }
 
-  void _showCreateSubTaskDialog(BuildContext context, Task parentTask) {
+  /// 处理任务拖放
+  void _handleTaskDropped(BuildContext context, Task task, String newStatus) {
+    // 如果是从 planning 拖出到执行状态
+    if (task.status == 'planning' && newStatus != 'planning') {
+      // 检查是否已设置结束时间
+      if (task.endDate != null) {
+        // 已设置结束时间，直接领取任务
+        context.read<TaskBloc>().add(
+          TaskClaimed(
+            taskId: task.id,
+            status: newStatus,
+            endDate: task.endDate!,
+          ),
+        );
+      } else {
+        // 未设置结束时间，弹出选择对话框
+        _showEndDatePicker(context, task, newStatus);
+      }
+    } else {
+      // 普通状态变更
+      context.read<TaskBloc>().add(
+        TaskStatusChanged(
+          taskId: task.id,
+          status: newStatus,
+        ),
+      );
+    }
+  }
+
+  /// 显示认领任务时间选择对话框
+  void _showEndDatePicker(BuildContext context, Task task, String newStatus) {
     showDialog(
       context: context,
-      builder: (dialogContext) => CreateSubTaskDialog(
-        parentTask: parentTask,
-        onCreate: ({
-          required String title,
-          String? description,
-          String priority = 'medium',
-          DateTime? startDate,
-          DateTime? endDate,
-        }) {
-          context.read<TaskBloc>().add(SubTaskCreated(
-            parentTaskId: parentTask.id,
-            request: CreateSubTaskRequest(
-              title: title,
-              description: description,
-              priority: priority,
-              startDate: startDate,
-              endDate: endDate,
-            ),
-          ));
+      builder: (dialogContext) => ClaimTaskTimeDialog(
+        onCancel: () => Navigator.pop(dialogContext),
+        onConfirm: (endDate) {
+          Navigator.pop(dialogContext);
+          if (context.mounted) {
+            // 调用领取任务接口
+            context.read<TaskBloc>().add(
+              TaskClaimed(
+                taskId: task.id,
+                status: newStatus,
+                endDate: endDate,
+              ),
+            );
+          }
         },
+      ),
+    );
+  }
+
+  /// 显示任务详情对话框
+  void _showTaskDetailDialog(BuildContext context, Task task) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => SimpleTaskDetailDialog(
+        task: task,
+        onClose: () => Navigator.pop(dialogContext),
       ),
     );
   }
@@ -80,8 +112,8 @@ class _KanbanColumnWidget extends StatelessWidget {
   final int columnIndex;
   final bool canAcceptFromLeft;
   final bool canAcceptFromRight;
-  final Function(int taskId, String newStatus) onTaskDropped;
-  final Function(Task parentTask) onCreateSubTask;
+  final Function(Task task, String newStatus) onTaskDropped;
+  final Function(Task task) onViewTaskDetail;
 
   const _KanbanColumnWidget({
     required this.column,
@@ -89,7 +121,7 @@ class _KanbanColumnWidget extends StatelessWidget {
     required this.canAcceptFromLeft,
     required this.canAcceptFromRight,
     required this.onTaskDropped,
-    required this.onCreateSubTask,
+    required this.onViewTaskDetail,
   });
 
   @override
@@ -101,7 +133,7 @@ class _KanbanColumnWidget extends StatelessWidget {
         return sourceStatus != targetStatus;
       },
       onAcceptWithDetails: (details) {
-        onTaskDropped(details.data.id, column.id);
+        onTaskDropped(details.data, column.id);
       },
       builder: (context, candidateData, rejectedData) {
         final isHovered = candidateData.isNotEmpty;
@@ -134,9 +166,7 @@ class _KanbanColumnWidget extends StatelessWidget {
                     final task = column.tasks[index];
                     return _KanbanTaskCard(
                       task: task,
-                      onCreateSubTask: task.isMainTask 
-                          ? () => onCreateSubTask(task)
-                          : null,
+                      onViewDetail: () => onViewTaskDetail(task),
                     );
                   },
                 ),
@@ -192,30 +222,15 @@ class _KanbanColumnWidget extends StatelessWidget {
       ),
     );
   }
-
-  /// 检查两个状态是否相邻（允许正向和反向流转，支持闭环）
-  bool _isAdjacentStatus(String fromStatus, String toStatus) {
-    // 状态顺序：planning -> pending -> in_progress -> completed
-    final statusOrder = ['planning', 'pending', 'in_progress', 'completed'];
-    // 转换为小写并去空格，防止 ID 格式不一致
-    final fromIndex = statusOrder.indexOf(fromStatus.trim().toLowerCase());
-    final toIndex = statusOrder.indexOf(toStatus.trim().toLowerCase());
-    
-    if (fromIndex == -1 || toIndex == -1) return false;
-    
-    final diff = (fromIndex - toIndex).abs();
-    // 允许相邻状态 (diff == 1) 或首尾闭环 (diff == 3)
-    return diff == 1 || diff == 3;
-  }
 }
 
 class _KanbanTaskCard extends StatelessWidget {
   final Task task;
-  final VoidCallback? onCreateSubTask;
+  final VoidCallback onViewDetail;
 
   const _KanbanTaskCard({
     required this.task,
-    this.onCreateSubTask,
+    required this.onViewDetail,
   });
 
   @override
@@ -229,7 +244,7 @@ class _KanbanTaskCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadius.md),
             child: SizedBox(
               width: constraints.maxWidth,
-              child: _buildCardContent(showActions: false),
+              child: _buildCardContent(),
             ),
           ),
           childWhenDragging: Opacity(
@@ -242,7 +257,7 @@ class _KanbanTaskCard extends StatelessWidget {
     );
   }
 
-  Widget _buildCardContent({bool showActions = true}) {
+  Widget _buildCardContent() {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -261,7 +276,7 @@ class _KanbanTaskCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 优先级标签 + 任务类型
+          // 优先级标签 + 任务类型 + 查看按钮
           Row(
             children: [
               _buildPriorityIndicator(),
@@ -282,10 +297,35 @@ class _KanbanTaskCard extends StatelessWidget {
                   ),
                 ),
               const Spacer(),
-              Text(
-                task.displayId,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+              // 查看按钮（替代原来的编号）
+              InkWell(
+                onTap: onViewDetail,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.visibility_outlined,
+                        size: 12,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '查看',
+                        style: AppTypography.caption.copyWith(
+                          fontSize: 10,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -304,21 +344,8 @@ class _KanbanTaskCard extends StatelessWidget {
           // 底部信息
           Row(
             children: [
-              // 负责人头像
-              CircleAvatar(
-                radius: 12,
-                backgroundColor: AppColors.primaryLight,
-                child: Text(
-                  task.assigneeName.isNotEmpty
-                      ? task.assigneeName[0].toUpperCase()
-                      : '?',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              // 负责人头像（无负责人时显示未分配）
+              _buildAssigneeAvatar(),
               const Spacer(),
               // 截止日期
               if (task.endDate != null)
@@ -340,34 +367,41 @@ class _KanbanTaskCard extends StatelessWidget {
                 ),
             ],
           ),
-          // 创建子任务按钮（仅主任务显示）
-          if (showActions && onCreateSubTask != null && task.isMainTask) ...[
-            const SizedBox(height: 8),
-            const Divider(height: 1),
-            const SizedBox(height: 8),
-            InkWell(
-              onTap: onCreateSubTask,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.add,
-                    size: 16,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '创建子任务',
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildAssigneeAvatar() {
+    // 无负责人时显示"未分配"
+    if (task.assigneeId == 0 || task.assigneeName.isEmpty || task.assigneeName == '未知') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Text(
+          '未分配',
+          style: AppTypography.caption.copyWith(
+            fontSize: 10,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: 12,
+      backgroundColor: AppColors.primaryLight,
+      child: Text(
+        task.assigneeName[0].toUpperCase(),
+        style: const TextStyle(
+          fontSize: 10,
+          color: AppColors.primary,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

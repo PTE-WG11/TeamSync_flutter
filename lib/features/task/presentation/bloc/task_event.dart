@@ -155,6 +155,42 @@ class SubTaskCreated extends TaskEvent {
   List<Object?> get props => [parentTaskId, request];
 }
 
+// ==================== 看板新功能事件 ====================
+
+/// 创建无负责人任务（看板中快速创建）
+class UnassignedTaskCreated extends TaskEvent {
+  final int projectId;
+  final String title;
+  final String? description;
+  final String priority;
+
+  const UnassignedTaskCreated({
+    required this.projectId,
+    required this.title,
+    this.description,
+    this.priority = 'medium',
+  });
+
+  @override
+  List<Object?> get props => [projectId, title, description, priority];
+}
+
+/// 领取任务（从planning拖出时调用）
+class TaskClaimed extends TaskEvent {
+  final int taskId;
+  final String status;        // pending 或 in_progress
+  final DateTime endDate;
+
+  const TaskClaimed({
+    required this.taskId,
+    required this.status,
+    required this.endDate,
+  });
+
+  @override
+  List<Object?> get props => [taskId, status, endDate];
+}
+
 /// 视图模式枚举
 enum TaskViewMode {
   kanban('看板', Icons.view_column_outlined),

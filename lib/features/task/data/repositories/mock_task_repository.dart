@@ -277,8 +277,8 @@ class MockTaskRepository implements TaskRepository {
       'level': 1,
       'parent_id': null,
       'path': '',
-      'start_date': request.startDate?.toIso8601String(),
-      'end_date': request.endDate?.toIso8601String(),
+      'start_date': request.startDate != null ? _formatDateTime(request.startDate!) : null,
+      'end_date': request.endDate != null ? _formatDateTime(request.endDate!) : null,
       'created_at': DateTime.now().toIso8601String(),
       'updated_at': DateTime.now().toIso8601String(),
       'children': [],
@@ -365,9 +365,9 @@ class MockTaskRepository implements TaskRepository {
       if (request.priority != null) 'priority': request.priority,
       if (request.assigneeId != null) 'assignee_id': request.assigneeId,
       if (request.startDate != null)
-        'start_date': request.startDate!.toIso8601String(),
+        'start_date': _formatDateTime(request.startDate!),
       if (request.endDate != null)
-        'end_date': request.endDate!.toIso8601String(),
+        'end_date': _formatDateTime(request.endDate!),
       'updated_at': DateTime.now().toIso8601String(),
     };
 
@@ -474,7 +474,7 @@ class MockTaskRepository implements TaskRepository {
   }
 
   @override
-  Future<List<KanbanColumnData>> getGlobalKanbanTasks({TaskFilter? filter}) async {
+  Future<List<KanbanColumnData>> getGlobalKanbanTasks({TaskFilter? filter, int? currentUserId}) async {
     await _simulateDelay(null);
     
     final allTasks = _tasks.map((json) => TaskModel.fromJson(json)).toList();
@@ -542,5 +542,71 @@ class MockTaskRepository implements TaskRepository {
     }
     
     return tasks;
+  }
+
+  // ==================== 看板新功能接口实现 ====================
+
+  @override
+  Future<Task> createUnassignedTask({
+    required int projectId,
+    required String title,
+    String? description,
+    String priority = 'medium',
+  }) async {
+    await _simulateDelay(null);
+    
+    final newTask = {
+      'id': _nextId++,
+      'project_id': projectId,
+      'title': title,
+      'description': description,
+      'assignee_id': null,
+      'assignee_name': null,
+      'assignee_avatar': null,
+      'status': 'planning',
+      'priority': priority,
+      'level': 1,
+      'parent_id': null,
+      'path': '',
+      'start_date': null,
+      'end_date': null,
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+      'children': [],
+      'subtask_count': 0,
+      'completed_subtask_count': 0,
+    };
+    
+    _tasks.add(newTask);
+    return TaskModel.fromJson(newTask);
+  }
+
+  @override
+  Future<Task> claimTask({
+    required int taskId,
+    required String status,
+    required DateTime endDate,
+  }) async {
+    await _simulateDelay(null);
+    
+    final taskIndex = _tasks.indexWhere((t) => t['id'] == taskId);
+    if (taskIndex == -1) {
+      throw Exception('任务不存在');
+    }
+    
+    // 模拟分配给当前用户（ID为1）
+    _tasks[taskIndex]['assignee_id'] = 1;
+    _tasks[taskIndex]['assignee_name'] = '当前用户';
+    _tasks[taskIndex]['status'] = status;
+    _tasks[taskIndex]['start_date'] = _formatDateTime(DateTime.now());
+    _tasks[taskIndex]['end_date'] = _formatDateTime(endDate);
+    _tasks[taskIndex]['updated_at'] = DateTime.now().toIso8601String();
+    
+    return TaskModel.fromJson(_tasks[taskIndex]);
+  }
+  
+  /// 格式化日期时间为后端 API 格式 YYYY-MM-DDTHH:mm:ss
+  String _formatDateTime(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}T${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:${date.second.toString().padLeft(2, '0')}';
   }
 }
