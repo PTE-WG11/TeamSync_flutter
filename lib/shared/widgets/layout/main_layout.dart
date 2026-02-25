@@ -235,7 +235,9 @@ class _TopNavigationBar extends StatelessWidget {
     return InkWell(
       onTap: () => context.go(route),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        height: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
@@ -247,8 +249,8 @@ class _TopNavigationBar extends StatelessWidget {
         child: Text(
           label,
           style: AppTypography.body.copyWith(
-            color: isSelected ? AppColors.primary : AppColors.textSecondary,
-            fontWeight: isSelected ? FontWeight.w600 : null,
+            color: isSelected ? AppColors.primary : AppColors.textPrimary,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
           ),
         ),
       ),
