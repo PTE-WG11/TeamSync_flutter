@@ -376,6 +376,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   }
 
   /// 主任务展开/收起
+  /// 注意：后端 /tasks/list/?view=tree 已返回完整树形结构，无需额外加载
   void _onTaskExpandToggled(
     TaskExpandToggled event,
     Emitter<TaskState> emit,

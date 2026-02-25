@@ -2,6 +2,29 @@ import '../../../attachment/data/models/attachment_model.dart';
 import '../../../attachment/domain/entities/attachment.dart';
 import '../../domain/entities/task.dart';
 
+/// 任务项目信息数据模型
+class TaskProjectInfoModel extends TaskProjectInfo {
+  const TaskProjectInfoModel({
+    required super.id,
+    required super.title,
+  });
+
+  factory TaskProjectInfoModel.fromJson(Map<String, dynamic> json) {
+    return TaskProjectInfoModel(
+      id: json['id'] as int? ?? 0,
+      title: json['title'] as String? ?? '未知项目',
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+    };
+  }
+}
+
 /// 任务数据模型
 class TaskModel extends Task {
   const TaskModel({
@@ -25,6 +48,12 @@ class TaskModel extends Task {
     super.subtaskCount = 0,
     super.completedSubtaskCount = 0,
     super.attachments = const [],
+    super.project,
+    super.normalFlag,
+    super.canView = true,
+    super.canEdit = false,
+    super.canHaveSubtasks = false,
+    super.isOverdue = false,
   });
 
   factory TaskModel.fromJson(Map<String, dynamic> json) {
@@ -53,11 +82,13 @@ class TaskModel extends Task {
 
     // 解析 project 信息（可能是对象或ID）
     int projectId = 0;
+    TaskProjectInfoModel? projectInfo;
     final dynamic projectRaw = json['project'];
     if (projectRaw is int) {
       projectId = projectRaw;
     } else if (projectRaw is Map<String, dynamic>) {
       projectId = projectRaw['id'] as int? ?? 0;
+      projectInfo = TaskProjectInfoModel.fromJson(projectRaw);
     }
     // 优先使用 project_id 字段
     projectId = json['project_id'] as int? ?? projectId;
@@ -71,6 +102,9 @@ class TaskModel extends Task {
         return DateTime.now();
       }
     }
+
+    // 提前解析 level 用于后续判断
+    final level = json['level'] as int? ?? 1;
 
     // 解析子任务
     List<Task> children = [];
@@ -102,7 +136,7 @@ class TaskModel extends Task {
       assigneeAvatar: assigneeAvatar,
       status: json['status'] as String? ?? 'planning',
       priority: json['priority'] as String? ?? 'medium',
-      level: json['level'] as int? ?? 1,
+      level: level,
       parentId: json['parent_id'] as int?,
       path: json['path'] as String? ?? '',
       startDate: json['start_date'] != null
@@ -118,6 +152,12 @@ class TaskModel extends Task {
       completedSubtaskCount: json['completed_subtask_count'] as int? ?? 
           children.where((c) => c.status == 'completed').length,
       attachments: attachments,
+      project: projectInfo,
+      normalFlag: json['normal_flag'] as String?,
+      canView: json['can_view'] as bool? ?? true,
+      canEdit: json['can_edit'] as bool? ?? false,
+      canHaveSubtasks: json['can_have_subtasks'] as bool? ?? (level < 3),
+      isOverdue: json['is_overdue'] as bool? ?? (json['normal_flag'] == 'overdue'),
     );
   }
 
@@ -143,6 +183,12 @@ class TaskModel extends Task {
       'subtask_count': subtaskCount,
       'completed_subtask_count': completedSubtaskCount,
       'attachments': attachments.map((e) => (e as AttachmentModel).toJson()).toList(),
+      'project': project?.toJson(),
+      'normal_flag': normalFlag,
+      'can_view': canView,
+      'can_edit': canEdit,
+      'can_have_subtasks': canHaveSubtasks,
+      'is_overdue': isOverdue,
     };
   }
 
@@ -173,6 +219,14 @@ class TaskModel extends Task {
           .toList(),
       subtaskCount: entity.subtaskCount,
       completedSubtaskCount: entity.completedSubtaskCount,
+      project: entity.project != null 
+          ? TaskProjectInfoModel(id: entity.project!.id, title: entity.project!.title)
+          : null,
+      normalFlag: entity.normalFlag,
+      canView: entity.canView,
+      canEdit: entity.canEdit,
+      canHaveSubtasks: entity.canHaveSubtasks,
+      isOverdue: entity.isOverdue,
     );
   }
 }

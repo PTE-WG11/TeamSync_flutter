@@ -131,6 +131,16 @@ class TaskExpandToggled extends TaskEvent {
   List<Object?> get props => [taskId];
 }
 
+/// 请求加载子任务
+class SubTasksLoadRequested extends TaskEvent {
+  final int parentTaskId;
+
+  const SubTasksLoadRequested(this.parentTaskId);
+
+  @override
+  List<Object?> get props => [parentTaskId];
+}
+
 /// 创建子任务
 class SubTaskCreated extends TaskEvent {
   final int parentTaskId;

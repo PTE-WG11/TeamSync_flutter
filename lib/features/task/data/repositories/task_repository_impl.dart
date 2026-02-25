@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../../../../core/network/api_client.dart';
 import '../../domain/entities/task.dart';
 import '../../domain/repositories/task_repository.dart';
@@ -74,7 +75,7 @@ class TaskRepositoryImpl implements TaskRepository {
           result.add(TaskModel.fromJson(item));
         } catch (e) {
           // 记录解析失败的项，但继续处理其他项
-          print('Task parse error at index $i: $e, data: $item');
+          debugPrint('Task parse error at index $i: $e, data: $item');
         }
       }
       return result;
@@ -102,6 +103,39 @@ class TaskRepositoryImpl implements TaskRepository {
       return TaskModel.fromJson(data);
     } catch (e) {
       throw Exception('获取任务详情失败: $e');
+    }
+  }
+
+  @override
+  Future<List<Task>> getSubTasks(int parentTaskId) async {
+    try {
+      // 尝试从详情接口获取子任务
+      final response = await _apiClient.get('/tasks/$parentTaskId/');
+      
+      final responseData = response.data as Map<String, dynamic>?;
+      if (responseData == null) {
+        return [];
+      }
+
+      // 后端返回格式: {code, message, data}
+      final data = responseData['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        return [];
+      }
+
+      // 尝试解析子任务列表
+      final dynamic childrenRaw = data['children'] ?? data['subtasks'];
+      if (childrenRaw is List) {
+        return childrenRaw
+            .whereType<Map<String, dynamic>>()
+            .map((e) => TaskModel.fromJson(e))
+            .toList();
+      }
+      
+      return [];
+    } catch (e) {
+      // 获取子任务失败，返回空列表
+      return [];
     }
   }
 
@@ -310,7 +344,8 @@ class TaskRepositoryImpl implements TaskRepository {
 
   @override
   Future<List<Task>> getGlobalListTasks({TaskFilter? filter}) async {
-    return _fetchGlobalTasks('/tasks/list/', filter);
+    // 使用 tree 视图获取嵌套的树形结构
+    return _fetchGlobalTasks('/tasks/list/', filter, defaultView: 'tree');
   }
 
   @override
@@ -382,9 +417,18 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   /// 通用全局任务查询方法
-  Future<List<Task>> _fetchGlobalTasks(String endpoint, TaskFilter? filter) async {
+  Future<List<Task>> _fetchGlobalTasks(
+    String endpoint,
+    TaskFilter? filter, {
+    String? defaultView,
+  }) async {
     try {
       final queryParams = <String, dynamic>{};
+      
+      // 添加默认视图参数
+      if (defaultView != null) {
+        queryParams['view'] = defaultView;
+      }
       
       if (filter?.status != null && filter!.status!.isNotEmpty) {
         queryParams['status'] = filter.status;
@@ -440,7 +484,7 @@ class TaskRepositoryImpl implements TaskRepository {
         try {
           result.add(TaskModel.fromJson(item));
         } catch (e) {
-          print('Task parse error at index $i: $e, data: $item');
+          debugPrint('Task parse error at index $i: $e, data: $item');
         }
       }
       return result;

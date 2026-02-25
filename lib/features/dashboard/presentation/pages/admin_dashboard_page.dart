@@ -210,7 +210,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('成员工作量', style: AppTypography.h4),
+        Text('成员工作进度', style: AppTypography.h4),
         const SizedBox(height: 12),
         Container(
           constraints: const BoxConstraints(

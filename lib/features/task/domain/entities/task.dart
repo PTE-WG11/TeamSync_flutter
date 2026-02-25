@@ -13,6 +13,13 @@ class TaskProjectInfo extends Equatable {
 
   @override
   List<Object?> get props => [id, title];
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+    };
+  }
 }
 
 /// 任务实体（支持主任务和子任务）
@@ -39,6 +46,10 @@ class Task extends Equatable {
   final List<Attachment> attachments; // 附件列表
   final TaskProjectInfo? project; // 项目信息
   final String? normalFlag; // 逾期标记: 'normal' | 'overdue'
+  final bool canView; // 是否有权限查看详情
+  final bool canEdit; // 是否有权限编辑
+  final bool canHaveSubtasks; // 是否可以拥有子任务
+  final bool isOverdue; // 是否逾期
 
   const Task({
     required this.id,
@@ -63,6 +74,10 @@ class Task extends Equatable {
     this.attachments = const [],
     this.project,
     this.normalFlag,
+    this.canView = true,
+    this.canEdit = false,
+    this.canHaveSubtasks = false,
+    this.isOverdue = false,
   });
 
   /// 是否为主任务
@@ -77,8 +92,7 @@ class Task extends Equatable {
   /// 是否已完成
   bool get isCompleted => status == 'completed';
 
-  /// 是否逾期
-  bool get isOverdue => normalFlag == 'overdue';
+
 
   /// 任务编号显示
   String get displayId => '#T-$id';
@@ -146,6 +160,10 @@ class Task extends Equatable {
         attachments,
         project,
         normalFlag,
+        canView,
+        canEdit,
+        canHaveSubtasks,
+        isOverdue,
       ];
 
   Task copyWith({
@@ -171,6 +189,10 @@ class Task extends Equatable {
     List<Attachment>? attachments,
     TaskProjectInfo? project,
     String? normalFlag,
+    bool? canView,
+    bool? canEdit,
+    bool? canHaveSubtasks,
+    bool? isOverdue,
   }) {
     return Task(
       id: id ?? this.id,
@@ -196,6 +218,10 @@ class Task extends Equatable {
       attachments: attachments ?? this.attachments,
       project: project ?? this.project,
       normalFlag: normalFlag ?? this.normalFlag,
+      canView: canView ?? this.canView,
+      canEdit: canEdit ?? this.canEdit,
+      canHaveSubtasks: canHaveSubtasks ?? this.canHaveSubtasks,
+      isOverdue: isOverdue ?? this.isOverdue,
     );
   }
 }

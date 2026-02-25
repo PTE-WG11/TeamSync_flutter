@@ -18,6 +18,11 @@ abstract class TaskRepository {
   /// [taskId] - 任务ID
   Future<Task> getTaskDetail(int taskId);
 
+  /// 获取子任务列表
+  /// 
+  /// [parentTaskId] - 父任务ID
+  Future<List<Task>> getSubTasks(int parentTaskId);
+
   /// 创建任务（主任务）
   /// 
   /// [projectId] - 项目ID
