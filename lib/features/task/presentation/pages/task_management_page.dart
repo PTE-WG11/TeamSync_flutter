@@ -31,8 +31,7 @@ class _TaskManagementPageState extends State<TaskManagementPage> {
   void initState() {
     super.initState();
     _loadProjects();
-    // 页面初始化时加载任务数据
-    context.read<TaskBloc>().add(const TasksLoadRequested());
+    // 注意：TasksLoadRequested 事件在路由层的 BlocProvider 创建时已发送
   }
 
   Future<void> _loadProjects() async {

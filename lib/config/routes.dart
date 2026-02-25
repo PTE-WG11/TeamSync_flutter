@@ -20,6 +20,7 @@ import '../features/team/presentation/bloc/team_bloc.dart';
 import '../features/team/presentation/pages/team_members_page.dart';
 import '../features/task/presentation/pages/task_management_page.dart';
 import '../features/task/presentation/bloc/task_bloc.dart';
+import '../features/task/presentation/bloc/task_event.dart';
 import '../core/permissions/permission_service.dart';
 import '../shared/widgets/layout/main_layout.dart';
 import 'theme.dart';
@@ -208,7 +209,7 @@ class AppRoutes {
                     create: (_) => TaskBloc(
                       taskRepository: taskRepository,
                       permissionService: permissionService,
-                    ),
+                    )..add(const TasksLoadRequested()),
                     child: const TaskManagementPage(),
                   ),
                 );

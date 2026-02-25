@@ -1,6 +1,20 @@
 import 'package:equatable/equatable.dart';
 import '../../../attachment/domain/entities/attachment.dart';
 
+/// 项目信息（用于任务列表展示）
+class TaskProjectInfo extends Equatable {
+  final int id;
+  final String title;
+
+  const TaskProjectInfo({
+    required this.id,
+    required this.title,
+  });
+
+  @override
+  List<Object?> get props => [id, title];
+}
+
 /// 任务实体（支持主任务和子任务）
 class Task extends Equatable {
   final int id;
@@ -23,6 +37,8 @@ class Task extends Equatable {
   final int subtaskCount; // 子任务数量
   final int completedSubtaskCount; // 已完成子任务数量
   final List<Attachment> attachments; // 附件列表
+  final TaskProjectInfo? project; // 项目信息
+  final String? normalFlag; // 逾期标记: 'normal' | 'overdue'
 
   const Task({
     required this.id,
@@ -45,6 +61,8 @@ class Task extends Equatable {
     this.subtaskCount = 0,
     this.completedSubtaskCount = 0,
     this.attachments = const [],
+    this.project,
+    this.normalFlag,
   });
 
   /// 是否为主任务
@@ -58,6 +76,9 @@ class Task extends Equatable {
 
   /// 是否已完成
   bool get isCompleted => status == 'completed';
+
+  /// 是否逾期
+  bool get isOverdue => normalFlag == 'overdue';
 
   /// 任务编号显示
   String get displayId => '#T-$id';
@@ -123,6 +144,8 @@ class Task extends Equatable {
         subtaskCount,
         completedSubtaskCount,
         attachments,
+        project,
+        normalFlag,
       ];
 
   Task copyWith({
@@ -146,6 +169,8 @@ class Task extends Equatable {
     int? subtaskCount,
     int? completedSubtaskCount,
     List<Attachment>? attachments,
+    TaskProjectInfo? project,
+    String? normalFlag,
   }) {
     return Task(
       id: id ?? this.id,
@@ -169,6 +194,8 @@ class Task extends Equatable {
       completedSubtaskCount:
           completedSubtaskCount ?? this.completedSubtaskCount,
       attachments: attachments ?? this.attachments,
+      project: project ?? this.project,
+      normalFlag: normalFlag ?? this.normalFlag,
     );
   }
 }
