@@ -32,7 +32,13 @@ class ProjectDetailPage extends StatefulWidget {
 
 class _ProjectDetailPageState extends State<ProjectDetailPage>
     with SingleTickerProviderStateMixin {
-  TabController? _tabController;
+  // 一级Tab控制器：项目详情 / 文档管理
+  TabController? _mainTabController;
+  // 二级Tab控制器：列表 / 看板 / 甘特图 / 日历
+  TabController? _taskTabController;
+  
+  // 当前选中的任务子视图索引
+  int _selectedTaskViewIndex = 0;
 
   @override
   void initState() {
@@ -40,15 +46,19 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
     _loadProjectDetail();
   }
 
-  void _initTabController() {
-    if (_tabController == null) {
-      _tabController = TabController(length: 2, vsync: this);
+  void _initTabControllers() {
+    if (_mainTabController == null) {
+      _mainTabController = TabController(length: 2, vsync: this);
+    }
+    if (_taskTabController == null) {
+      _taskTabController = TabController(length: 4, vsync: this);
     }
   }
 
   @override
   void dispose() {
-    _tabController?.dispose();
+    _mainTabController?.dispose();
+    _taskTabController?.dispose();
     super.dispose();
   }
 
@@ -113,7 +123,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
           ),
         ),
         if (state is ProjectDetailLoadSuccess) ...[
-          // 创建任务按钮 - 所有团队成员都可见
+          // 创建任务按钮 - 仅在项目详情Tab显示
           ElevatedButton.icon(
             onPressed: () => _showCreateTaskDialog(context, state.project),
             icon: const Icon(Icons.add, size: 18),
@@ -173,30 +183,226 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
     }
 
     if (state is ProjectDetailLoadSuccess) {
-      final project = state.project;
-
-      return RefreshIndicator(
-        onRefresh: () async {
-          _loadProjectDetail();
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 项目信息卡片
-              _buildProjectInfoCard(project),
-              const SizedBox(height: 24),
-              // 任务视图 Tab
-              _buildTaskSection(state),
-              const SizedBox(height: 24),
-            ],
-          ),
+      _initTabControllers();
+      
+      return Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          boxShadow: AppShadows.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 一级Tab切换：项目详情 / 文档管理
+            _buildMainTabBar(),
+            const Divider(height: 1),
+            // Tab内容区域
+            Expanded(
+              child: TabBarView(
+                controller: _mainTabController!,
+                children: [
+                  // 项目详情Tab
+                  _buildProjectDetailTab(state),
+                  // 文档管理Tab
+                  _buildDocumentsTab(state),
+                ],
+              ),
+            ),
+          ],
         ),
       );
     }
 
     return const Center(child: CircularProgressIndicator());
+  }
+
+  /// 构建一级TabBar（项目详情 / 文档管理）
+  Widget _buildMainTabBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      child: Row(
+        children: [
+          // 主Tab切换
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+            ),
+            child: TabBar(
+              controller: _mainTabController!,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              indicator: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+              ),
+              labelColor: AppColors.textInverse,
+              unselectedLabelColor: AppColors.textSecondary,
+              labelStyle: AppTypography.body.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+              dividerColor: Colors.transparent,
+              padding: const EdgeInsets.all(4),
+              tabs: const [
+                Tab(
+                  icon: Icon(Icons.dashboard_outlined, size: 18),
+                  text: '项目详情',
+                ),
+                Tab(
+                  icon: Icon(Icons.folder_copy_outlined, size: 18),
+                  text: '文档管理',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 构建项目详情Tab内容
+  Widget _buildProjectDetailTab(ProjectDetailLoadSuccess state) {
+    return RefreshIndicator(
+      onRefresh: () async {
+        _loadProjectDetail();
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 项目信息卡片
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: _buildProjectInfoCard(state.project),
+            ),
+            const Divider(height: 1),
+            // 任务管理区域（包含子Tab）
+            _buildTaskManagementSection(state),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建任务管理区域（包含子Tab切换）
+  Widget _buildTaskManagementSection(ProjectDetailLoadSuccess state) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 任务管理标题栏 + 子Tab切换
+        Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('任务管理', style: AppTypography.h4),
+              // 子视图切换按钮组
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildTaskViewButton('列表', Icons.list, 0),
+                    _buildTaskViewButton('看板', Icons.view_kanban, 1),
+                    _buildTaskViewButton('甘特图', Icons.timeline, 2),
+                    _buildTaskViewButton('日历', Icons.calendar_month, 3),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        // 任务视图内容
+        SizedBox(
+          height: MediaQuery.of(context).size.height - 420,
+          child: IndexedStack(
+            index: _selectedTaskViewIndex,
+            children: [
+              // 列表视图
+              _buildListView(state),
+              // 看板视图
+              _buildPlaceholderView('看板视图', Icons.view_kanban),
+              // 甘特图视图
+              _buildPlaceholderView('甘特图视图', Icons.timeline),
+              // 日历视图
+              _buildPlaceholderView('日历视图', Icons.calendar_month),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 构建任务视图切换按钮
+  Widget _buildTaskViewButton(String label, IconData icon, int index) {
+    final isActive = _selectedTaskViewIndex == index;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedTaskViewIndex = index;
+        });
+      },
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.surface : null,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: isActive ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ] : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isActive ? AppColors.primary : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: AppTypography.bodySmall.copyWith(
+                color: isActive ? AppColors.primary : AppColors.textSecondary,
+                fontWeight: isActive ? FontWeight.w500 : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建文档管理Tab内容
+  Widget _buildDocumentsTab(ProjectDetailLoadSuccess state) {
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => DocumentBloc(
+            repository: DocumentRepositoryImpl(),
+            projectId: state.project.id.toString(),
+          )..add(const DocumentsLoadRequested()),
+        ),
+        BlocProvider(
+          create: (_) => FolderBloc(
+            repository: DocumentRepositoryImpl(),
+            projectId: state.project.id.toString(),
+          )..add(const FoldersLoadRequested()),
+        ),
+      ],
+      child: ProjectDocumentsPage(projectId: state.project.id),
+    );
   }
 
   /// 构建无权限访问视图
@@ -246,9 +452,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
     return Container(
       padding: AppSpacing.cardPadding,
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: AppShadows.card,
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -484,157 +690,6 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
     );
   }
 
-  /// 构建任务区域（Tab切换）
-  Widget _buildTaskSection(ProjectDetailLoadSuccess state) {
-    _initTabController();
-    
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: AppShadows.card,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Tab 标题栏
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('项目管理', style: AppTypography.h4),
-                // 主Tab切换：任务 / 文档
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                  ),
-                  child: TabBar(
-                    controller: _tabController!,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.start,
-                    indicator: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                    ),
-                    labelColor: AppColors.textInverse,
-                    unselectedLabelColor: AppColors.textSecondary,
-                    labelStyle: AppTypography.bodySmall.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                    dividerColor: Colors.transparent,
-                    padding: const EdgeInsets.all(4),
-                    tabs: const [
-                      Tab(
-                        icon: Icon(Icons.task_alt, size: 18),
-                        text: '任务',
-                      ),
-                      Tab(
-                        icon: Icon(Icons.folder_copy, size: 18),
-                        text: '文档',
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          // Tab 内容
-          SizedBox(
-            height: MediaQuery.of(context).size.height - 320,
-            child: TabBarView(
-              controller: _tabController!,
-              children: [
-                // 任务视图
-                _buildTaskTabView(state),
-                // 文档视图
-                _buildDocumentsTabView(state),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建任务Tab视图
-  Widget _buildTaskTabView(ProjectDetailLoadSuccess state) {
-    return Column(
-      children: [
-        // 任务视图内的子Tab
-        _buildTaskSubTabs(state),
-        const Divider(height: 1),
-        // 任务内容
-        Expanded(
-          child: _buildListView(state),
-        ),
-      ],
-    );
-  }
-
-  /// 构建任务子Tab（列表/看板/甘特图/日历）
-  Widget _buildTaskSubTabs(ProjectDetailLoadSuccess state) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Row(
-        children: [
-          // 子视图切换
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildSubTabButton('列表', Icons.list, true),
-                _buildSubTabButton('看板', Icons.view_kanban, false),
-                _buildSubTabButton('甘特图', Icons.timeline, false),
-                _buildSubTabButton('日历', Icons.calendar_month, false),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSubTabButton(String label, IconData icon, bool isActive) {
-    return InkWell(
-      onTap: () {
-        // TODO: 实现子视图切换
-      },
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? AppColors.surface : null,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isActive ? AppColors.primary : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: AppTypography.bodySmall.copyWith(
-                color: isActive ? AppColors.primary : AppColors.textSecondary,
-                fontWeight: isActive ? FontWeight.w500 : null,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   /// 构建列表视图
   Widget _buildListView(ProjectDetailLoadSuccess state) {
     return Padding(
@@ -683,27 +738,6 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
           ),
         ],
       ),
-    );
-  }
-
-  /// 构建文档Tab视图
-  Widget _buildDocumentsTabView(ProjectDetailLoadSuccess state) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (_) => DocumentBloc(
-            repository: DocumentRepositoryImpl(),
-            projectId: state.project.id.toString(),
-          )..add(const DocumentsLoadRequested()),
-        ),
-        BlocProvider(
-          create: (_) => FolderBloc(
-            repository: DocumentRepositoryImpl(),
-            projectId: state.project.id.toString(),
-          )..add(const FoldersLoadRequested()),
-        ),
-      ],
-      child: ProjectDocumentsPage(projectId: state.project.id),
     );
   }
 
