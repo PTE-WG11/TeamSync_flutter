@@ -6,6 +6,10 @@ import '../../../../config/routes.dart';
 import '../../../../config/theme.dart';
 // import '../../../../core/permissions/permission_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../document/data/repositories/document_repository_impl.dart';
+import '../../../document/presentation/bloc/document_bloc.dart';
+import '../../../document/presentation/bloc/folder_bloc.dart';
+import '../../../document/presentation/pages/project_documents_page.dart';
 import '../../../task/presentation/widgets/create_task_dialog.dart';
 import '../../../task/presentation/widgets/task_list_widget.dart';
 import '../bloc/project_bloc.dart';
@@ -38,7 +42,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
 
   void _initTabController() {
     if (_tabController == null) {
-      _tabController = TabController(length: 4, vsync: this);
+      _tabController = TabController(length: 2, vsync: this);
     }
   }
 
@@ -499,8 +503,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('任务管理', style: AppTypography.h4),
-                // 视图切换标签
+                Text('项目管理', style: AppTypography.h4),
+                // 主Tab切换：任务 / 文档
                 Container(
                   decoration: BoxDecoration(
                     color: AppColors.background,
@@ -522,10 +526,14 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
                     dividerColor: Colors.transparent,
                     padding: const EdgeInsets.all(4),
                     tabs: const [
-                      Tab(text: '列表'),
-                      Tab(text: '看板'),
-                      Tab(text: '甘特图'),
-                      Tab(text: '日历'),
+                      Tab(
+                        icon: Icon(Icons.task_alt, size: 18),
+                        text: '任务',
+                      ),
+                      Tab(
+                        icon: Icon(Icons.folder_copy, size: 18),
+                        text: '文档',
+                      ),
                     ],
                   ),
                 ),
@@ -535,22 +543,94 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
           const Divider(height: 1),
           // Tab 内容
           SizedBox(
-            height: MediaQuery.of(context).size.height - 300, // 动态计算高度，减去顶部和其他控件的高度
+            height: MediaQuery.of(context).size.height - 320,
             child: TabBarView(
               controller: _tabController!,
               children: [
-                // 列表视图
-                _buildListView(state),
-                // 看板视图（预留）
-                _buildPlaceholderView('看板视图', Icons.view_kanban),
-                // 甘特图视图（预留）
-                _buildPlaceholderView('甘特图视图', Icons.timeline),
-                // 日历视图（预留）
-                _buildPlaceholderView('日历视图', Icons.calendar_month),
+                // 任务视图
+                _buildTaskTabView(state),
+                // 文档视图
+                _buildDocumentsTabView(state),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 构建任务Tab视图
+  Widget _buildTaskTabView(ProjectDetailLoadSuccess state) {
+    return Column(
+      children: [
+        // 任务视图内的子Tab
+        _buildTaskSubTabs(state),
+        const Divider(height: 1),
+        // 任务内容
+        Expanded(
+          child: _buildListView(state),
+        ),
+      ],
+    );
+  }
+
+  /// 构建任务子Tab（列表/看板/甘特图/日历）
+  Widget _buildTaskSubTabs(ProjectDetailLoadSuccess state) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Row(
+        children: [
+          // 子视图切换
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildSubTabButton('列表', Icons.list, true),
+                _buildSubTabButton('看板', Icons.view_kanban, false),
+                _buildSubTabButton('甘特图', Icons.timeline, false),
+                _buildSubTabButton('日历', Icons.calendar_month, false),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubTabButton(String label, IconData icon, bool isActive) {
+    return InkWell(
+      onTap: () {
+        // TODO: 实现子视图切换
+      },
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.surface : null,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isActive ? AppColors.primary : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: AppTypography.bodySmall.copyWith(
+                color: isActive ? AppColors.primary : AppColors.textSecondary,
+                fontWeight: isActive ? FontWeight.w500 : null,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -601,29 +681,29 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
               ),
             ),
           ),
-          // TODO: 分页组件
-          /*
-          if (state.tasks.length > 20)
-            Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    onPressed: () {}, // TODO: 上一页
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  Text('第 1 页'),
-                  IconButton(
-                    onPressed: () {}, // TODO: 下一页
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                ],
-              ),
-            ),
-          */
         ],
       ),
+    );
+  }
+
+  /// 构建文档Tab视图
+  Widget _buildDocumentsTabView(ProjectDetailLoadSuccess state) {
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => DocumentBloc(
+            repository: DocumentRepositoryImpl(),
+            projectId: state.project.id.toString(),
+          )..add(const DocumentsLoadRequested()),
+        ),
+        BlocProvider(
+          create: (_) => FolderBloc(
+            repository: DocumentRepositoryImpl(),
+            projectId: state.project.id.toString(),
+          )..add(const FoldersLoadRequested()),
+        ),
+      ],
+      child: ProjectDocumentsPage(projectId: state.project.id),
     );
   }
 
