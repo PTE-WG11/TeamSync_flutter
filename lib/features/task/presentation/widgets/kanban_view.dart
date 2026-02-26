@@ -4,7 +4,7 @@ import '../../../../config/theme.dart';
 import '../../domain/entities/task.dart';
 import '../bloc/task_bloc.dart';
 import '../bloc/task_event.dart';
-import 'simple_task_detail_dialog.dart';
+import 'kanban_task_detail_dialog.dart';
 import 'claim_task_time_dialog.dart';
 
 /// 任务看板视图
@@ -97,11 +97,15 @@ class TaskKanbanView extends StatelessWidget {
 
   /// 显示任务详情对话框
   void _showTaskDetailDialog(BuildContext context, Task task) {
+    final taskBloc = context.read<TaskBloc>();
     showDialog(
       context: context,
-      builder: (dialogContext) => SimpleTaskDetailDialog(
-        task: task,
-        onClose: () => Navigator.pop(dialogContext),
+      builder: (dialogContext) => BlocProvider.value(
+        value: taskBloc,
+        child: KanbanTaskDetailDialog(
+          task: task,
+          onClose: () => Navigator.pop(dialogContext),
+        ),
       ),
     );
   }
@@ -408,29 +412,56 @@ class _KanbanTaskCard extends StatelessWidget {
 
   Widget _buildPriorityIndicator() {
     Color color;
+    String label;
     switch (task.priority) {
       case 'urgent':
         color = AppColors.error;
+        label = '紧急';
         break;
       case 'high':
         color = AppColors.warning;
+        label = '高';
         break;
       case 'medium':
         color = AppColors.info;
+        label = '中';
         break;
       case 'low':
         color = AppColors.textSecondary;
+        label = '低';
         break;
       default:
         color = AppColors.textSecondary;
+        label = '中';
     }
 
     return Container(
-      width: 8,
-      height: 8,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(4),
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTypography.caption.copyWith(
+              fontSize: 10,
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }

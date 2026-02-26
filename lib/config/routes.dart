@@ -33,6 +33,7 @@ class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
   static const String home = '/';
+  static const String dashboard = '/dashboard';
   static const String projects = '/projects';
   static const String projectDetail = '/projects/:id';
   static const String tasks = '/tasks';
@@ -132,10 +133,28 @@ class AppRoutes {
             );
           },
           routes: [
-            // 首页（仪表盘）- 根据角色显示不同页面
+            // 首页（任务管理看板）- 根据角色显示不同页面
             GoRoute(
               path: home,
               name: 'home',
+              pageBuilder: (context, state) {
+                final taskRepository = TaskRepositoryImpl();
+                final permissionService = context.read<PermissionService>();
+                return NoTransitionPage(
+                  child: BlocProvider(
+                    create: (_) => TaskBloc(
+                      taskRepository: taskRepository,
+                      permissionService: permissionService,
+                    )..add(const TasksLoadRequested()),
+                    child: const TaskManagementPage(),
+                  ),
+                );
+              },
+            ),
+            // 仪表盘 - 通过导航点击进入
+            GoRoute(
+              path: '/dashboard',
+              name: 'dashboard',
               pageBuilder: (context, state) {
                 final authState = context.read<AuthBloc>().state;
                 final isAdmin = authState is AuthAuthenticated && authState.isAdmin;

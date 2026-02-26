@@ -50,6 +50,8 @@ class TaskModel extends Task {
     super.attachments = const [],
     super.project,
     super.normalFlag,
+    super.createdBy = 0,
+    super.createdByName = '',
     super.canView = true,
     super.canEdit = false,
     super.canHaveSubtasks = false,
@@ -79,6 +81,26 @@ class TaskModel extends Task {
         '';  // 空字符串表示未分配
     final assigneeAvatar = json['assignee_avatar'] as String? ??
         assigneeData?['avatar'] as String?;
+
+    // 安全获取 created_by (创建者) 信息
+    final dynamic createdByRaw = json['created_by'];
+    Map<String, dynamic>? createdByData;
+    int? createdByIdFromData;
+    
+    if (createdByRaw is int) {
+      createdByIdFromData = createdByRaw;
+    } else if (createdByRaw is Map<String, dynamic>) {
+      createdByData = createdByRaw;
+      createdByIdFromData = createdByData['id'] as int?;
+    }
+    
+    final createdBy = json['created_by_id'] as int? ?? 
+        createdByIdFromData ?? 
+        0;
+    final createdByName = json['created_by_name'] as String? ?? 
+        createdByData?['username'] as String? ?? 
+        createdByData?['name'] as String? ?? 
+        '';
 
     // 解析 project 信息（可能是对象或ID）
     int projectId = 0;
@@ -154,6 +176,8 @@ class TaskModel extends Task {
       attachments: attachments,
       project: projectInfo,
       normalFlag: json['normal_flag'] as String?,
+      createdBy: createdBy,
+      createdByName: createdByName,
       canView: json['can_view'] as bool? ?? true,
       canEdit: json['can_edit'] as bool? ?? false,
       canHaveSubtasks: json['can_have_subtasks'] as bool? ?? (level < 3),
@@ -223,6 +247,8 @@ class TaskModel extends Task {
           ? TaskProjectInfoModel(id: entity.project!.id, title: entity.project!.title)
           : null,
       normalFlag: entity.normalFlag,
+      createdBy: entity.createdBy,
+      createdByName: entity.createdByName,
       canView: entity.canView,
       canEdit: entity.canEdit,
       canHaveSubtasks: entity.canHaveSubtasks,

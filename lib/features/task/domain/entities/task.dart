@@ -46,6 +46,8 @@ class Task extends Equatable {
   final List<Attachment> attachments; // 附件列表
   final TaskProjectInfo? project; // 项目信息
   final String? normalFlag; // 逾期标记: 'normal' | 'overdue'
+  final int createdBy; // 创建者ID
+  final String createdByName; // 创建者名字
   final bool canView; // 是否有权限查看详情
   final bool canEdit; // 是否有权限编辑
   final bool canHaveSubtasks; // 是否可以拥有子任务
@@ -74,6 +76,8 @@ class Task extends Equatable {
     this.attachments = const [],
     this.project,
     this.normalFlag,
+    this.createdBy = 0,
+    this.createdByName = '',
     this.canView = true,
     this.canEdit = false,
     this.canHaveSubtasks = false,
@@ -160,6 +164,8 @@ class Task extends Equatable {
         attachments,
         project,
         normalFlag,
+        createdBy,
+        createdByName,
         canView,
         canEdit,
         canHaveSubtasks,
@@ -189,6 +195,8 @@ class Task extends Equatable {
     List<Attachment>? attachments,
     TaskProjectInfo? project,
     String? normalFlag,
+    int? createdBy,
+    String? createdByName,
     bool? canView,
     bool? canEdit,
     bool? canHaveSubtasks,
@@ -218,6 +226,8 @@ class Task extends Equatable {
       attachments: attachments ?? this.attachments,
       project: project ?? this.project,
       normalFlag: normalFlag ?? this.normalFlag,
+      createdBy: createdBy ?? this.createdBy,
+      createdByName: createdByName ?? this.createdByName,
       canView: canView ?? this.canView,
       canEdit: canEdit ?? this.canEdit,
       canHaveSubtasks: canHaveSubtasks ?? this.canHaveSubtasks,

@@ -183,10 +183,10 @@ class _TopNavigationBar extends StatelessWidget {
           _buildLogo(),
           const SizedBox(width: 48),
           // 全局导航 - 管理员显示"仪表盘"，成员显示"首页"
-          _buildNavItem(context, isAdmin ? '仪表盘' : '首页', AppRoutes.home),
+          _buildNavItem(context, isAdmin ? '仪表盘' : '首页', AppRoutes.dashboard),
           _buildNavItem(context, '项目', AppRoutes.projects),
+          _buildNavItem(context, '任务', AppRoutes.tasks),
           if (isAdmin) _buildNavItem(context, '团队', AppRoutes.members),
-          _buildNavItem(context, '日历', AppRoutes.calendar),
           const Spacer(),
           // 通知中心
           _buildNotificationButton(),
@@ -442,33 +442,33 @@ class _Sidebar extends StatelessWidget {
           // 管理员：快捷管理区域
           if (isAdmin) ...[
             _buildSectionTitle('快捷管理'),
-            _buildMenuItem(
-              icon: Icons.dashboard_outlined,
-              label: '项目仪表盘',
-              route: AppRoutes.home,
-            ),
-            _buildCreateProjectButton(context),
+            // _buildMenuItem(
+            //   icon: Icons.dashboard_outlined,
+            //   label: '项目仪表盘',
+            //   route: AppRoutes.home,
+            // ),
             _buildMenuItem(
               icon: Icons.assignment_outlined,
               label: '任务管理',
               route: AppRoutes.tasks,
             ),
-            _buildMenuItem(
-              icon: Icons.people_outline,
-              label: '成员管理',
-              route: AppRoutes.members,
-            ),
+            _buildCreateProjectButton(context),
+            // _buildMenuItem(
+            //   icon: Icons.people_outline,
+            //   label: '成员管理',
+            //   route: AppRoutes.members,
+            // ),
             const Divider(height: 32),
           ],
           
           // 成员：个人工作区
           if (!isAdmin) ...[
             _buildSectionTitle('我的工作'),
-            _buildMenuItem(
-              icon: Icons.task_alt,
-              label: '我的任务',
-              route: AppRoutes.home,
-            ),
+            // _buildMenuItem(
+            //   icon: Icons.task_alt,
+            //   label: '我的任务',
+            //   route: AppRoutes.home,
+            // ),
             _buildMenuItem(
               icon: Icons.assignment_outlined,
               label: '任务管理',
@@ -479,11 +479,11 @@ class _Sidebar extends StatelessWidget {
               label: '日历视图',
               route: AppRoutes.calendar,
             ),
-            _buildMenuItem(
-              icon: Icons.people_outline,
-              label: '团队成员',
-              route: AppRoutes.members,
-            ),
+            // _buildMenuItem(
+            //   icon: Icons.people_outline,
+            //   label: '团队成员',
+            //   route: AppRoutes.members,
+            // ),
             const Divider(height: 32),
           ],
           
