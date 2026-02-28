@@ -71,12 +71,8 @@ class _TaskManagementPageContent extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 页面标题栏
-          _buildHeader(context),
-          // 视图切换栏
-          _buildViewSwitcher(context),
-          // 筛选栏
-          _buildFilterBar(context),
+          // 整合后的头部区域：标题 + 视图切换 + 创建按钮 + 筛选
+          _buildIntegratedHeader(context),
           const Divider(height: 1),
           // 任务内容区
           Expanded(
@@ -135,49 +131,128 @@ class _TaskManagementPageContent extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  /// 整合后的头部区域 - 更紧凑的布局
+  Widget _buildIntegratedHeader(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(24),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '任务管理',
-                  style: AppTypography.h3,
+          // 第一行：标题信息 + 视图切换 + 创建按钮
+          Row(
+            children: [
+              // 标题和任务统计
+              Expanded(
+                child: Row(
+                  children: [
+                    Text(
+                      '任务管理',
+                      style: AppTypography.h3,
+                    ),
+                    const SizedBox(width: 12),
+                    BlocBuilder<TaskBloc, TaskState>(
+                      builder: (context, state) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${state.totalCount} 个任务',
+                            style: AppTypography.body.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                BlocBuilder<TaskBloc, TaskState>(
-                  builder: (context, state) {
-                    return Text(
-                      '共 ${state.totalCount} 个任务',
-                      style: AppTypography.body.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          // 创建任务按钮
-          ElevatedButton.icon(
-            onPressed: () => _showCreateTaskDialog(context),
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('创建任务'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.textInverse,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 12,
               ),
-            ),
+              // 视图切换按钮组
+              _buildCompactViewSwitcher(context),
+              const SizedBox(width: 16),
+              // 创建任务按钮
+              ElevatedButton.icon(
+                onPressed: () => _showCreateTaskDialog(context),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('创建任务'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.textInverse,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 12),
+          // 第二行：筛选栏
+          _buildFilterBar(context),
         ],
       ),
+    );
+  }
+
+  /// 紧凑的视图切换按钮
+  Widget _buildCompactViewSwitcher(BuildContext context) {
+    return BlocBuilder<TaskBloc, TaskState>(
+      builder: (context, state) {
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: TaskViewMode.values.map((mode) {
+              final isSelected = state.viewMode == mode;
+              return InkWell(
+                onTap: () {
+                  context.read<TaskBloc>().add(TaskViewModeChanged(mode));
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.primary : null,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        mode.icon,
+                        size: 16,
+                        color: isSelected ? AppColors.textInverse : AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        mode.label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                          color: isSelected ? AppColors.textInverse : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
     );
   }
 
@@ -213,95 +288,79 @@ class _TaskManagementPageContent extends StatelessWidget {
     );
   }
 
-  Widget _buildViewSwitcher(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: BlocBuilder<TaskBloc, TaskState>(
-        builder: (context, state) {
-          return SegmentedButton<TaskViewMode>(
-            segments: TaskViewMode.values.map((mode) {
-              return ButtonSegment(
-                value: mode,
-                label: Text(
-                  mode.label,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    height: 1.0,
-                  ),
-                ),
-                icon: Icon(mode.icon, size: 18),
-              );
-            }).toList(),
-            selected: {state.viewMode},
-            onSelectionChanged: (selected) {
-              context.read<TaskBloc>().add(TaskViewModeChanged(selected.first));
-            },
-            style: ButtonStyle(
-              backgroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return AppColors.primary;
-                }
-                return null;
-              }),
-              foregroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return AppColors.textInverse;
-                }
-                return AppColors.textSecondary;
-              }),
-              // 确保文本水平显示，防止竖排
-              textStyle: WidgetStateProperty.all(
-                const TextStyle(
-                  fontSize: 14,
-                  height: 1.0,
-                  inherit: false,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Widget _buildFilterBar(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      child: Row(
-        children: [
-          // 人员筛选
-          _buildAssigneeFilter(context),
-        ],
-      ),
+    return Row(
+      children: [
+        // 人员筛选
+        _buildAssigneeFilter(context),
+      ],
     );
   }
 
   Widget _buildAssigneeFilter(BuildContext context) {
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<String?>(
-        value: context.select(
-          (TaskBloc bloc) => bloc.state.selectedAssigneeFilter,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          value: context.select(
+            (TaskBloc bloc) => bloc.state.selectedAssigneeFilter,
+          ),
+          hint: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.filter_list_outlined, size: 16, color: AppColors.textSecondary),
+              const SizedBox(width: 6),
+              const Text('所有人员'),
+            ],
+          ),
+          isDense: true,
+          icon: Icon(Icons.keyboard_arrow_down, size: 18, color: AppColors.textSecondary),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.textPrimary,
+          ),
+          items: [
+            DropdownMenuItem(
+              value: null,
+              child: Row(
+                children: [
+                  Icon(Icons.people_outline, size: 16, color: AppColors.textSecondary),
+                  const SizedBox(width: 8),
+                  const Text('所有人员'),
+                ],
+              ),
+            ),
+            DropdownMenuItem(
+              value: 'me',
+              child: Row(
+                children: [
+                  Icon(Icons.person_outline, size: 16, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  const Text('我负责的'),
+                ],
+              ),
+            ),
+            DropdownMenuItem(
+              value: 'others',
+              child: Row(
+                children: [
+                  Icon(Icons.people_outline, size: 16, color: AppColors.info),
+                  const SizedBox(width: 8),
+                  const Text('其他成员'),
+                ],
+              ),
+            ),
+          ],
+          onChanged: (value) {
+            context.read<TaskBloc>().add(TaskAssigneeFilterChanged(value));
+          },
         ),
-        hint: const Text('所有人员'),
-        isDense: true,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        items: const [
-          DropdownMenuItem(
-            value: null,
-            child: Text('所有人员'),
-          ),
-          DropdownMenuItem(
-            value: 'me',
-            child: Text('我负责的'),
-          ),
-          DropdownMenuItem(
-            value: 'others',
-            child: Text('其他成员'),
-          ),
-        ],
-        onChanged: (value) {
-          context.read<TaskBloc>().add(TaskAssigneeFilterChanged(value));
-        },
       ),
     );
   }
