@@ -49,3 +49,13 @@ class AuthLogoutRequested extends AuthEvent {
 class AuthCheckRequested extends AuthEvent {
   const AuthCheckRequested();
 }
+
+/// 用户信息更新
+class AuthUserUpdated extends AuthEvent {
+  final dynamic user;
+
+  const AuthUserUpdated(this.user);
+
+  @override
+  List<Object?> get props => [user];
+}

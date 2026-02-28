@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -165,6 +166,12 @@ class DocumentRepositoryImpl implements DocumentRepository {
         final List<dynamic> list = innerData is List 
             ? innerData 
             : (innerData['list'] ?? []);
+        
+        // 调试：打印第一个文档的数据结构
+        if (list.isNotEmpty) {
+          debugPrint('[getDocuments] 第一个文档数据: ${list.first}');
+        }
+        
         return list.map((json) => DocumentModel.fromJson(json)).toList();
       }
       throw Exception(response.data['message'] ?? '获取文档列表失败');
@@ -181,7 +188,12 @@ class DocumentRepositoryImpl implements DocumentRepository {
       );
       
       if (response.data['code'] == 0 || response.data['code'] == 200) {
-        return DocumentModel.fromJson(response.data['data']);
+        var data = response.data['data'];
+        // 处理嵌套数据结构：有些接口返回 {code, data: {实际数据}}
+        if (data is Map<String, dynamic> && data.containsKey('code') && data.containsKey('data')) {
+          data = data['data'];
+        }
+        return DocumentModel.fromJson(data);
       }
       throw Exception(response.data['message'] ?? '获取文档详情失败');
     } catch (e) {
@@ -488,6 +500,23 @@ class DocumentRepositoryImpl implements DocumentRepository {
   }) async {
     final fileName = filePath.split('/').last;
     
+    // 判断是否为 Markdown 文件
+    if (_isMarkdownFile(fileName)) {
+      debugPrint('[uploadFile] 检测到 Markdown 文件，直接读取内容存入数据库');
+      // 读取文件内容
+      final file = File(filePath);
+      final content = await file.readAsString(encoding: utf8);
+      
+      // 调用创建 Markdown 文档 API，不经过 OSS
+      return await createMarkdownDocument(
+        projectId: projectId,
+        title: title ?? _getFileNameWithoutExtension(fileName),
+        folderId: folderId,
+        content: content,
+      );
+    }
+    
+    // 非 Markdown 文件，走 OSS 上传流程
     // 获取文件大小
     final file = File(filePath);
     final fileSize = await file.length();
@@ -524,6 +553,22 @@ class DocumentRepositoryImpl implements DocumentRepository {
     String? folderId,
     String? title,
   }) async {
+    // 判断是否为 Markdown 文件
+    if (_isMarkdownFile(fileName)) {
+      debugPrint('[uploadFileFromBytes] 检测到 Markdown 文件，直接读取内容存入数据库');
+      // 将字节解码为文本内容
+      final content = utf8.decode(fileBytes);
+      
+      // 调用创建 Markdown 文档 API，不经过 OSS
+      return await createMarkdownDocument(
+        projectId: projectId,
+        title: title ?? _getFileNameWithoutExtension(fileName),
+        folderId: folderId,
+        content: content,
+      );
+    }
+    
+    // 非 Markdown 文件，走 OSS 上传流程
     // 步骤1: 申请上传URL
     final uploadInfo = await _getUploadUrl(
       projectId: projectId,
@@ -548,21 +593,56 @@ class DocumentRepositoryImpl implements DocumentRepository {
     );
   }
 
+  /// 判断是否为 Markdown 文件
+  bool _isMarkdownFile(String fileName) {
+    final extension = fileName.split('.').last.toLowerCase();
+    return extension == 'md' || extension == 'markdown';
+  }
+  
+  /// 获取不带扩展名的文件名
+  String _getFileNameWithoutExtension(String fileName) {
+    final lastDotIndex = fileName.lastIndexOf('.');
+    if (lastDotIndex == -1) return fileName;
+    return fileName.substring(0, lastDotIndex);
+  }
+
   @override
   Future<String> getDownloadUrl(String documentId, {bool inline = false}) async {
     try {
+      debugPrint('[getDownloadUrl] 请求文档 $documentId 的下载链接, inline=$inline');
+      
       final response = await _apiClient.get(
         '/documents/$documentId/download/',
         queryParameters: {'inline': inline},
       );
       
+      debugPrint('[getDownloadUrl] 响应: ${response.data}');
+      
       if (response.data['code'] == 0 || response.data['code'] == 200) {
-        return response.data['data']['download_url'] ?? 
-               response.data['data']['url'] ?? 
-               response.data['data']['downloadUrl'];
+        var data = response.data['data'];
+        
+        // 处理嵌套结构
+        if (data is Map<String, dynamic> && data.containsKey('code') && data.containsKey('data')) {
+          data = data['data'];
+        }
+        
+        final url = data['download_url'] ?? 
+                   data['url'] ?? 
+                   data['downloadUrl'] ??
+                   data['file_url'] ??
+                   data['fileUrl'];
+        
+        debugPrint('[getDownloadUrl] 解析到URL: $url');
+        
+        if (url == null || url.toString().isEmpty) {
+          throw Exception('后端返回的下载链接为空');
+        }
+        
+        return url.toString();
       }
       throw Exception(response.data['message'] ?? '获取下载链接失败');
     } catch (e) {
+      debugPrint('[getDownloadUrl] 错误: $e');
       throw Exception('获取下载链接失败: $e');
     }
   }
@@ -620,7 +700,7 @@ class DocumentRepositoryImpl implements DocumentRepository {
   }) async {
     try {
       final response = await _apiClient.get(
-        '/documents/$documentId/comments/',
+        '/projects/documents/$documentId/comments/',
         queryParameters: {
           'page': page,
           'page_size': pageSize,
@@ -645,7 +725,7 @@ class DocumentRepositoryImpl implements DocumentRepository {
   }) async {
     try {
       final response = await _apiClient.post(
-        '/documents/$documentId/comments/',
+        '/projects/documents/$documentId/comments/',
         data: {'content': content},
       );
       
@@ -662,7 +742,7 @@ class DocumentRepositoryImpl implements DocumentRepository {
   Future<void> deleteComment(String commentId) async {
     try {
       final response = await _apiClient.delete(
-        '/comments/$commentId/',
+        '/projects/comments/$commentId/',
       );
       
       if (response.data['code'] != 0 && response.data['code'] != 200) {

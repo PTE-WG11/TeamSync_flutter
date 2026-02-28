@@ -406,20 +406,31 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
                 }
               });
             },
-            avatar: CircleAvatar(
-              radius: 12,
-              backgroundColor: AppColors.primary,
-              child: Text(
-                member.username[0],
-                style: const TextStyle(
-                  color: AppColors.textInverse,
-                  fontSize: 12,
-                ),
-              ),
-            ),
+            avatar: _buildMemberAvatar(member),
           );
         }).toList(),
       ),
+    );
+  }
+
+  /// 构建成员头像
+  Widget _buildMemberAvatar(ProjectMember member) {
+    final hasAvatar = member.avatar != null && member.avatar!.trim().isNotEmpty;
+    final initial = member.username.isNotEmpty ? member.username[0].toUpperCase() : '?';
+
+    return CircleAvatar(
+      radius: 12,
+      backgroundColor: AppColors.primary,
+      backgroundImage: hasAvatar ? NetworkImage(member.avatar!) : null,
+      child: hasAvatar
+          ? null
+          : Text(
+              initial,
+              style: const TextStyle(
+                color: AppColors.textInverse,
+                fontSize: 12,
+              ),
+            ),
     );
   }
 

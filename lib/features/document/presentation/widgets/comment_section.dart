@@ -333,25 +333,7 @@ class _CommentItem extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 头像
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: AppColors.primaryLight,
-            backgroundImage: comment.author.avatar != null
-                ? NetworkImage(comment.author.avatar!)
-                : null,
-            child: comment.author.avatar == null
-                ? Text(
-                    comment.author.name.isNotEmpty
-                        ? comment.author.name[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                : null,
-          ),
+          _buildAuthorAvatar(comment.author),
           const SizedBox(width: 12),
           // 评论内容
           Expanded(
@@ -434,5 +416,27 @@ class _CommentItem extends StatelessWidget {
     } else {
       return DateFormat('MM-dd HH:mm').format(time);
     }
+  }
+
+  /// 构建评论作者头像
+  Widget _buildAuthorAvatar(CommentAuthor author) {
+    final hasAvatar = author.avatar != null && author.avatar!.trim().isNotEmpty;
+    final initial = author.name.isNotEmpty ? author.name[0].toUpperCase() : '?';
+
+    return CircleAvatar(
+      radius: 16,
+      backgroundColor: AppColors.primaryLight,
+      backgroundImage: hasAvatar ? NetworkImage(author.avatar!) : null,
+      child: hasAvatar
+          ? null
+          : Text(
+              initial,
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+    );
   }
 }

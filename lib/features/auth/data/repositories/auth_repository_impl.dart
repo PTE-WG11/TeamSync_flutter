@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import '../../../../core/network/api_client.dart';
 import '../../domain/repositories/auth_repository.dart';
 
@@ -212,6 +213,133 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> clearTokens() async {
     await _apiClient.clearToken();
+  }
+
+  @override
+  Future<UserInfo> updateCurrentUser({
+    String? username,
+    String? email,
+    String? avatar,
+  }) async {
+    try {
+      final response = await _apiClient.patch(
+        '/auth/me/update/',
+        data: {
+          if (username != null) 'username': username,
+          if (email != null) 'email': email,
+          if (avatar != null) 'avatar': avatar,
+        },
+      );
+
+      final responseData = response.data;
+      if (responseData == null) {
+        throw Exception('更新用户信息失败：服务器返回空数据');
+      }
+
+      final code = responseData['code'] as int?;
+      if (code != 200) {
+        final message = responseData['message'] as String? ?? '更新失败';
+        throw Exception(message);
+      }
+
+      final data = responseData['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('更新用户信息失败：服务器返回的数据为空');
+      }
+
+      return _parseUserInfo(data);
+    } catch (e) {
+      throw Exception('更新用户信息失败: $e');
+    }
+  }
+
+  @override
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+    required String newPasswordConfirm,
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/auth/me/password/',
+        data: {
+          'old_password': oldPassword,
+          'new_password': newPassword,
+          'new_password_confirm': newPasswordConfirm,
+        },
+      );
+
+      final responseData = response.data;
+      if (responseData == null) {
+        throw Exception('修改密码失败：服务器返回空数据');
+      }
+
+      final code = responseData['code'] as int?;
+      if (code != 200) {
+        final message = responseData['message'] as String? ?? '修改密码失败';
+        throw Exception(message);
+      }
+    } catch (e) {
+      throw Exception('修改密码失败: $e');
+    }
+  }
+
+  @override
+  Future<AvatarUploadResult> uploadAvatar({
+    required List<int> fileBytes,
+    required String fileName,
+    required String mimeType,
+  }) async {
+    try {
+      // 创建 FormData
+      final formData = FormData.fromMap({
+        'avatar': MultipartFile.fromBytes(
+          fileBytes,
+          filename: fileName,
+        ),
+      });
+
+      final response = await _apiClient.post(
+        '/auth/me/avatar/upload/',
+        data: formData,
+        options: Options(
+          contentType: 'multipart/form-data',
+        ),
+      );
+
+      final responseData = response.data;
+      if (responseData == null) {
+        throw Exception('上传头像失败：服务器返回空数据');
+      }
+
+      final code = responseData['code'] as int?;
+      if (code != 200) {
+        final message = responseData['message'] as String? ?? '上传头像失败';
+        throw Exception(message);
+      }
+
+      final data = responseData['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('上传头像失败：服务器返回的数据为空');
+      }
+
+      final avatarUrl = data['avatar'] as String?;
+      if (avatarUrl == null) {
+        throw Exception('上传头像失败：服务器未返回头像地址');
+      }
+
+      final userData = data['user'] as Map<String, dynamic>?;
+      if (userData == null) {
+        throw Exception('上传头像失败：服务器未返回用户信息');
+      }
+
+      return AvatarUploadResult(
+        avatarUrl: avatarUrl,
+        user: _parseUserInfo(userData),
+      );
+    } catch (e) {
+      throw Exception('上传头像失败: $e');
+    }
   }
 
   /// 解析用户信息

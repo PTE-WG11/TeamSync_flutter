@@ -7,11 +7,13 @@ import '../../../../config/theme.dart';
 // import '../../../../core/permissions/permission_widgets.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../document/data/repositories/document_repository_impl.dart';
+import '../../../document/domain/repositories/document_repository.dart';
 import '../../../document/presentation/bloc/document_bloc.dart';
 import '../../../document/presentation/bloc/folder_bloc.dart';
 import '../../../document/presentation/pages/project_documents_page.dart';
 import '../../../task/presentation/widgets/create_task_dialog.dart';
 import '../../../task/presentation/widgets/task_list_widget.dart';
+import '../../domain/entities/project.dart';
 import '../bloc/project_bloc.dart';
 import '../bloc/project_event.dart';
 import '../bloc/project_state.dart';
@@ -34,31 +36,20 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
     with SingleTickerProviderStateMixin {
   // 一级Tab控制器：项目详情 / 文档管理
   TabController? _mainTabController;
-  // 二级Tab控制器：列表 / 看板 / 甘特图 / 日历
-  TabController? _taskTabController;
   
-  // 当前选中的任务子视图索引
+  // 当前选中的任务子视图索引（0=列表, 1=看板, 2=甘特图, 3=日历）
   int _selectedTaskViewIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _mainTabController = TabController(length: 2, vsync: this);
     _loadProjectDetail();
-  }
-
-  void _initTabControllers() {
-    if (_mainTabController == null) {
-      _mainTabController = TabController(length: 2, vsync: this);
-    }
-    if (_taskTabController == null) {
-      _taskTabController = TabController(length: 4, vsync: this);
-    }
   }
 
   @override
   void dispose() {
     _mainTabController?.dispose();
-    _taskTabController?.dispose();
     super.dispose();
   }
 
@@ -183,7 +174,6 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
     }
 
     if (state is ProjectDetailLoadSuccess) {
-      _initTabControllers();
       
       return Container(
         decoration: BoxDecoration(
@@ -386,22 +376,30 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
 
   /// 构建文档管理Tab内容
   Widget _buildDocumentsTab(ProjectDetailLoadSuccess state) {
-    return MultiBlocProvider(
+    final repository = DocumentRepositoryImpl();
+    return MultiRepositoryProvider(
       providers: [
-        BlocProvider(
-          create: (_) => DocumentBloc(
-            repository: DocumentRepositoryImpl(),
-            projectId: state.project.id.toString(),
-          )..add(const DocumentsLoadRequested()),
-        ),
-        BlocProvider(
-          create: (_) => FolderBloc(
-            repository: DocumentRepositoryImpl(),
-            projectId: state.project.id.toString(),
-          )..add(const FoldersLoadRequested()),
+        RepositoryProvider<DocumentRepository>(
+          create: (_) => repository,
         ),
       ],
-      child: ProjectDocumentsPage(projectId: state.project.id),
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider(
+            create: (_) => DocumentBloc(
+              repository: repository,
+              projectId: state.project.id.toString(),
+            )..add(const DocumentsLoadRequested()),
+          ),
+          BlocProvider(
+            create: (_) => FolderBloc(
+              repository: repository,
+              projectId: state.project.id.toString(),
+            )..add(const FoldersLoadRequested()),
+          ),
+        ],
+        child: ProjectDocumentsPage(projectId: state.project.id),
+      ),
     );
   }
 
@@ -594,21 +592,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
           runSpacing: 8,
           children: [
             ...members.take(5).map<Widget>((member) {
-              return Tooltip(
-                message: member.username,
-                child: CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AppColors.primaryLight,
-                  child: Text(
-                    member.username[0].toUpperCase(),
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              );
+              return _buildMemberAvatar(member);
             }),
             if (members.length > 5)
               CircleAvatar(
@@ -624,6 +608,31 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
           ],
         ),
       ],
+    );
+  }
+
+  /// 构建成员头像
+  Widget _buildMemberAvatar(ProjectMember member) {
+    final hasAvatar = member.avatar != null && member.avatar!.trim().isNotEmpty;
+    final initial = member.username.isNotEmpty ? member.username[0].toUpperCase() : '?';
+
+    return Tooltip(
+      message: member.username,
+      child: CircleAvatar(
+        radius: 16,
+        backgroundColor: AppColors.primaryLight,
+        backgroundImage: hasAvatar ? NetworkImage(member.avatar!) : null,
+        child: hasAvatar
+            ? null
+            : Text(
+                initial,
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+      ),
     );
   }
 

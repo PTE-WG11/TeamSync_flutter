@@ -21,6 +21,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     on<TasksLoadRequested>(_onTasksLoadRequested);
     on<TaskFilterChanged>(_onFilterChanged);
     on<TaskProjectFilterChanged>(_onProjectFilterChanged);
+    on<TaskAssigneeFilterChanged>(_onAssigneeFilterChanged);
     on<TaskStatusChanged>(_onTaskStatusChanged);
     on<TaskDateRangeChanged>(_onDateRangeChanged);
     on<TaskCreated>(_onTaskCreated);
@@ -190,6 +191,35 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     );
     emit(state.copyWith(
       selectedProjectId: event.projectId,
+      filter: newFilter,
+    ));
+    add(const TasksLoadRequested());
+  }
+
+  /// 人员筛选变更
+  void _onAssigneeFilterChanged(
+    TaskAssigneeFilterChanged event,
+    Emitter<TaskState> emit,
+  ) {
+    // 根据筛选条件设置 assignee
+    String? assignee;
+    if (event.assigneeFilter == 'me') {
+      assignee = 'me';
+    } else if (event.assigneeFilter == 'others') {
+      assignee = 'others';
+    } else {
+      assignee = null; // 'all' 或 null
+    }
+
+    final currentFilter = state.filter;
+    final newFilter = TaskFilter(
+      status: currentFilter?.status,
+      assignee: assignee,
+      search: currentFilter?.search,
+      projectId: currentFilter?.projectId,
+    );
+    emit(state.copyWith(
+      selectedAssigneeFilter: event.assigneeFilter,
       filter: newFilter,
     ));
     add(const TasksLoadRequested());
@@ -464,24 +494,6 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         errorMessage: '领取任务失败: $e',
       ));
     }
-  }
-
-  List<KanbanColumn> _buildKanbanColumns(List<Task> tasks) {
-    final columns = [
-      KanbanColumn(id: 'planning', title: '规划中', color: 0xFF94A3B8),
-      KanbanColumn(id: 'pending', title: '待处理', color: 0xFFF59E0B),
-      KanbanColumn(id: 'in_progress', title: '进行中', color: 0xFF0D9488),
-      KanbanColumn(id: 'completed', title: '已完成', color: 0xFF10B981),
-    ];
-
-    for (final column in columns) {
-      column.tasks.clear();
-      column.tasks.addAll(
-        tasks.where((t) => t.status == column.id).toList(),
-      );
-    }
-
-    return columns;
   }
 
   DateTimeRange _calculateDateRange(List<Task> tasks) {

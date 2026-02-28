@@ -132,7 +132,8 @@ class FolderTree extends StatelessWidget {
               children: [
                 // 展开/折叠按钮
                 if (hasChildren)
-                  InkWell(
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: () {
                       context.read<FolderBloc>().add(FolderExpandToggled(node.folder.id));
                     },

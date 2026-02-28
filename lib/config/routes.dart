@@ -6,6 +6,9 @@ import 'dart:async';
 import '../features/auth/presentation/bloc/auth_bloc.dart';
 import '../features/auth/presentation/pages/login_page.dart';
 import '../features/auth/presentation/pages/register_page.dart';
+import '../features/auth/data/repositories/auth_repository_impl.dart';
+import '../features/auth/domain/repositories/auth_repository.dart';
+import '../features/settings/presentation/pages/settings_page.dart';
 import '../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import '../features/dashboard/presentation/pages/admin_dashboard_page.dart';
 import '../features/dashboard/presentation/pages/member_dashboard_page.dart';
@@ -263,8 +266,11 @@ class AppRoutes {
             GoRoute(
               path: settings,
               name: 'settings',
-              pageBuilder: (context, state) => const NoTransitionPage(
-                child: PlaceholderPage(title: '个人设置'),
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: RepositoryProvider<AuthRepository>(
+                  create: (context) => AuthRepositoryImpl(),
+                  child: const SettingsPage(),
+                ),
               ),
             ),
             // 通知中心

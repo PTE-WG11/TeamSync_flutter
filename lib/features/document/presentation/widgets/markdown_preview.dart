@@ -15,14 +15,16 @@ class MarkdownPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     // 简单渲染Markdown
     // 生产环境建议使用 flutter_markdown 包
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+    return SingleChildScrollView(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
+        child: _buildMarkdownContent(),
       ),
-      child: _buildMarkdownContent(),
     );
   }
 

@@ -1,9 +1,14 @@
 
 
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../config/theme.dart';
 import '../../data/repositories/document_repository_impl.dart';
@@ -51,22 +56,29 @@ class ProjectDocumentsPage extends StatelessWidget {
 
     // 否则创建新的Bloc
     final repo = repository ?? DocumentRepositoryImpl();
-    return MultiBlocProvider(
+    return MultiRepositoryProvider(
       providers: [
-        BlocProvider(
-          create: (_) => DocumentBloc(
-            repository: repo,
-            projectId: projectId.toString(),
-          )..add(const DocumentsLoadRequested()),
-        ),
-        BlocProvider(
-          create: (_) => FolderBloc(
-            repository: repo,
-            projectId: projectId.toString(),
-          )..add(const FoldersLoadRequested()),
+        RepositoryProvider<DocumentRepository>(
+          create: (_) => repo,
         ),
       ],
-      child: const _ProjectDocumentsView(),
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider(
+            create: (_) => DocumentBloc(
+              repository: repo,
+              projectId: projectId.toString(),
+            )..add(const DocumentsLoadRequested()),
+          ),
+          BlocProvider(
+            create: (_) => FolderBloc(
+              repository: repo,
+              projectId: projectId.toString(),
+            )..add(const FoldersLoadRequested()),
+          ),
+        ],
+        child: const _ProjectDocumentsView(),
+      ),
     );
   }
 }
@@ -80,7 +92,6 @@ class _ProjectDocumentsView extends StatefulWidget {
 
 class _ProjectDocumentsViewState extends State<_ProjectDocumentsView> {
   final _searchController = TextEditingController();
-  String? _selectedDocumentId;
 
   @override
   void dispose() {
@@ -90,54 +101,66 @@ class _ProjectDocumentsViewState extends State<_ProjectDocumentsView> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<DocumentBloc, DocumentState>(
-      listenWhen: (previous, current) => 
-        previous.selectedDocumentId != current.selectedDocumentId,
-      listener: (context, state) {
-        setState(() {
-          _selectedDocumentId = state.selectedDocumentId;
-        });
-      },
-      child: Row(
-        children: [
-          // 左侧：文件夹树
-          _buildFolderPanel(),
-          // 中间：文档列表
-          Expanded(
-            flex: 3,
-            child: _buildDocumentPanel(),
-          ),
-          // 右侧：预览面板（选中文件时显示）
-          if (_selectedDocumentId != null)
-            BlocBuilder<DocumentBloc, DocumentState>(
-              builder: (context, state) {
-                Document? document;
-                try {
-                  document = state.documents.firstWhere(
-                    (d) => d.id == _selectedDocumentId,
-                  );
-                } catch (_) {
-                  document = null;
-                }
-                if (document == null) return const SizedBox.shrink();
-                
-                return PreviewPanel(
-                  document: document,
-                  onClose: () {
-                    context.read<DocumentBloc>().add(const DocumentClearSelection());
+    return LayoutBuilder(
+        builder: (context, constraints) {
+          // 设置最小宽度为 1000，不足时显示滚动条
+          const double minWidth = 1000;
+          final bool needScroll = constraints.maxWidth < minWidth;
+          
+          // 从 Bloc 获取选中的文档ID
+          final selectedDocumentId = context.select<DocumentBloc, String?>(
+            (bloc) => bloc.state.selectedDocumentId,
+          );
+          
+          Widget content = Row(
+            children: [
+              // 左侧：文件夹树
+              _buildFolderPanel(),
+              // 中间：文档列表
+              Expanded(
+                flex: 3,
+                child: _buildDocumentPanel(),
+              ),
+              // 右侧：预览面板（选中文件时显示）
+              if (selectedDocumentId != null)
+                BlocBuilder<DocumentBloc, DocumentState>(
+                  builder: (context, state) {
+                    // 使用 selectedDocument getter 获取文档（优先返回详情）
+                    final document = state.selectedDocument;
+                    if (document == null) return const SizedBox.shrink();
+                    
+                    return PreviewPanel(
+                      document: document,
+                      isLoading: state.isLoadingDetail,
+                      onClose: () {
+                        context.read<DocumentBloc>().add(const DocumentClearSelection());
+                      },
+                      onEdit: document.isEditable && !state.isLoadingDetail
+                          ? () => _showEditDialog(context, document)
+                          : null,
+                      onDownload: state.isLoadingDetail
+                          ? null
+                          : () => _downloadDocument(context, document),
+                    );
                   },
-                  onEdit: document.isEditable
-                      ? () => _showEditDialog(context, document!)
-                      : null,
-                  onDownload: () {
-                    _showDownloadSnackBar(context, document!.title);
-                  },
-                );
-              },
-            ),
-        ],
-      ),
-    );
+                ),
+            ],
+          );
+          
+          // 如果宽度不足最小宽度，添加水平滚动
+          if (needScroll) {
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: minWidth),
+                child: content,
+              ),
+            );
+          }
+          
+          return content;
+        },
+      );
   }
 
   Widget _buildFolderPanel() {
@@ -443,29 +466,41 @@ class _ProjectDocumentsViewState extends State<_ProjectDocumentsView> {
   }
 
   Widget _buildGridView(DocumentState state) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        childAspectRatio: 1.2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: state.documents.length + 1, // +1 for create button
-      itemBuilder: (context, index) {
-        if (index == state.documents.length) {
-          return _buildCreateCard();
-        }
+    const double cardWidth = 260; // 固定卡片宽度
+    const double spacing = 16; // 间距
+    const double cardAspectRatio = 2.2; // 卡片宽高比（宽度/高度，现在是横向布局，所以比较扁）
 
-        final doc = state.documents[index];
-        return DocumentCard(
-          document: doc,
-          isSelected: doc.id == state.selectedDocumentId,
-          onTap: () {
-            context.read<DocumentBloc>().add(DocumentSelected(doc.id));
-          },
-          onMoreTap: () {
-            _showDocumentActions(context, doc);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 根据可用宽度计算列数
+        final availableWidth = constraints.maxWidth - (spacing * 2); // 减去左右padding
+        final crossAxisCount = (availableWidth / (cardWidth + spacing)).floor().clamp(1, 10);
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(spacing),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: cardAspectRatio,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+          ),
+          itemCount: state.documents.length + 1, // +1 for create button
+          itemBuilder: (context, index) {
+            if (index == state.documents.length) {
+              return _buildCreateCard();
+            }
+
+            final doc = state.documents[index];
+            return DocumentCard(
+              document: doc,
+              isSelected: doc.id == state.selectedDocumentId,
+              onTap: () {
+                context.read<DocumentBloc>().add(DocumentSelected(doc.id));
+              },
+              onMoreTap: () {
+                _showDocumentActions(context, doc);
+              },
+            );
           },
         );
       },
@@ -536,74 +571,30 @@ class _ProjectDocumentsViewState extends State<_ProjectDocumentsView> {
   }
 
   void _showCreateMarkdownDialog(BuildContext context) {
-    final titleController = TextEditingController();
     final folderState = context.read<FolderBloc>().state;
+    final documentBloc = context.read<DocumentBloc>();
 
+    // 直接打开编辑器，用于创建新文档
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('新建 Markdown 文档', style: AppTypography.h4),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: '请输入文档标题',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
+      builder: (dialogContext) => MarkdownEditor(
+        initialContent: '',
+        title: '', // 空标题表示新建模式
+        isNewDocument: true,
+        folderName: folderState.selectedFolder?.name,
+        onSave: (title, content) {
+          if (title.trim().isNotEmpty) {
+            documentBloc.add(
+              DocumentCreateMarkdownRequested(
+                title: title.trim(),
+                folderId: folderState.selectedFolderId,
+                content: content,
               ),
-            ),
-            const SizedBox(height: 16),
-            if (folderState.selectedFolder != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.folder,
-                      size: 16,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '将保存到: ${folderState.selectedFolder!.name}',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final title = titleController.text.trim();
-              if (title.isNotEmpty) {
-                context.read<DocumentBloc>().add(
-                  DocumentCreateMarkdownRequested(
-                    title: title,
-                    folderId: folderState.selectedFolderId,
-                  ),
-                );
-                Navigator.pop(dialogContext);
-              }
-            },
-            child: const Text('创建'),
-          ),
-        ],
+            );
+          }
+          Navigator.pop(dialogContext);
+        },
+        onCancel: () => Navigator.pop(dialogContext),
       ),
     );
   }
@@ -672,7 +663,7 @@ class _ProjectDocumentsViewState extends State<_ProjectDocumentsView> {
       builder: (dialogContext) => MarkdownEditor(
         initialContent: document.content ?? '',
         title: document.title,
-        onSave: (content) {
+        onSave: (title, content) {
           context.read<DocumentBloc>().add(
             DocumentUpdateMarkdownRequested(
               documentId: document.id,
@@ -708,7 +699,7 @@ class _ProjectDocumentsViewState extends State<_ProjectDocumentsView> {
               title: const Text('下载'),
               onTap: () {
                 Navigator.pop(sheetContext);
-                _showDownloadSnackBar(context, document.title);
+                _downloadDocument(context, document);
               },
             ),
             ListTile(
@@ -830,6 +821,93 @@ class _ProjectDocumentsViewState extends State<_ProjectDocumentsView> {
         ),
       ),
     );
+  }
+
+  /// 下载文档
+  Future<void> _downloadDocument(BuildContext context, Document document) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
+    try {
+      // Markdown 文件直接在前端生成并下载
+      if (document.type == DocumentType.markdown) {
+        await _downloadMarkdownFile(context, document);
+        return;
+      }
+      
+      // 显示下载中提示
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('正在获取下载链接: ${document.title}...')),
+      );
+      
+      // 获取下载链接
+      String downloadUrl;
+      if (document.downloadUrl.isNotEmpty) {
+        // 如果文档中已有下载链接，直接使用
+        downloadUrl = document.downloadUrl;
+      } else {
+        // 否则调用接口获取
+        final repository = context.read<DocumentRepository>();
+        downloadUrl = await repository.getDownloadUrl(document.id);
+      }
+      
+      debugPrint('[Download] 下载链接: $downloadUrl');
+      
+      // 打开下载链接
+      final uri = Uri.parse(downloadUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('已开始下载: ${document.title}')),
+        );
+      } else {
+        throw Exception('无法打开下载链接');
+      }
+    } catch (e) {
+      debugPrint('[Download] 下载失败: $e');
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('下载失败: $e')),
+      );
+    }
+  }
+  
+  /// 直接下载 Markdown 文件（前端生成）
+  Future<void> _downloadMarkdownFile(BuildContext context, Document document) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
+    try {
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('正在准备下载: ${document.title}...')),
+      );
+      
+      // 获取 Markdown 内容
+      final content = document.content ?? '';
+      
+      // 生成文件名（确保以 .md 结尾）
+      String fileName = document.title;
+      if (!fileName.toLowerCase().endsWith('.md')) {
+        fileName = '$fileName.md';
+      }
+      
+      // 将内容转换为字节
+      final bytes = Uint8List.fromList(utf8.encode(content));
+      
+      // 使用 file_saver 保存文件
+      await FileSaver.instance.saveFile(
+        name: fileName.replaceAll('.md', ''), // file_saver 会自动添加扩展名
+        bytes: bytes,
+        ext: 'md',
+        mimeType: MimeType.text,
+      );
+      
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('已保存: $fileName')),
+      );
+    } catch (e) {
+      debugPrint('[Download] Markdown 下载失败: $e');
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('下载失败: $e')),
+      );
+    }
   }
 }
 

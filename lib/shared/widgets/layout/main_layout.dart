@@ -93,6 +93,7 @@ class _MainLayoutState extends State<MainLayout> {
           _TopNavigationBar(
             userName: user?.username ?? '',
             userRole: user?.roleDisplayName ?? '',
+            userAvatar: user?.avatar,
             isAdmin: isAdmin,
             unreadNotificationCount: _unreadNotificationCount,
             currentRoute: location,
@@ -150,6 +151,7 @@ class _MainLayoutState extends State<MainLayout> {
 class _TopNavigationBar extends StatelessWidget {
   final String userName;
   final String userRole;
+  final String? userAvatar;
   final bool isAdmin;
   final int unreadNotificationCount;
   final String currentRoute;
@@ -159,6 +161,7 @@ class _TopNavigationBar extends StatelessWidget {
   const _TopNavigationBar({
     required this.userName,
     required this.userRole,
+    this.userAvatar,
     required this.isAdmin,
     required this.unreadNotificationCount,
     required this.currentRoute,
@@ -308,6 +311,7 @@ class _TopNavigationBar extends StatelessWidget {
   Widget _buildUserMenu(BuildContext context) {
     final displayName = userName.isNotEmpty ? userName : '用户';
     final firstChar = displayName.isNotEmpty ? displayName[0] : '?';
+    final hasAvatar = userAvatar != null && userAvatar!.trim().isNotEmpty;
 
     return PopupMenuButton<String>(
       offset: const Offset(0, 40),
@@ -316,14 +320,17 @@ class _TopNavigationBar extends StatelessWidget {
           CircleAvatar(
             radius: 16,
             backgroundColor: AppColors.primaryLight,
-            child: Text(
-              firstChar.toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            backgroundImage: hasAvatar ? NetworkImage(userAvatar!) : null,
+            child: hasAvatar
+                ? null
+                : Text(
+                    firstChar.toUpperCase(),
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
           ),
           const SizedBox(width: 8),
           Text(

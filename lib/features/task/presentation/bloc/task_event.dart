@@ -45,6 +45,16 @@ class TaskProjectFilterChanged extends TaskEvent {
   List<Object?> get props => [projectId];
 }
 
+/// 人员筛选变更
+class TaskAssigneeFilterChanged extends TaskEvent {
+  final String? assigneeFilter; // 'all', 'me', 'others'
+
+  const TaskAssigneeFilterChanged(this.assigneeFilter);
+
+  @override
+  List<Object?> get props => [assigneeFilter];
+}
+
 /// 任务状态变更
 class TaskStatusChanged extends TaskEvent {
   final int taskId;

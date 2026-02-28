@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../config/theme.dart';
-import '../../../../core/permissions/permission_service.dart';
 import '../../../project/data/repositories/project_repository_impl.dart';
 import '../../../project/domain/entities/project.dart';
-import '../../data/repositories/task_repository_impl.dart';
-import '../../domain/entities/task.dart';
 import '../bloc/task_bloc.dart';
 import '../bloc/task_event.dart';
 import '../bloc/task_state.dart';
@@ -225,7 +222,13 @@ class _TaskManagementPageContent extends StatelessWidget {
             segments: TaskViewMode.values.map((mode) {
               return ButtonSegment(
                 value: mode,
-                label: Text(mode.label),
+                label: Text(
+                  mode.label,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    height: 1.0,
+                  ),
+                ),
                 icon: Icon(mode.icon, size: 18),
               );
             }).toList(),
@@ -246,6 +249,14 @@ class _TaskManagementPageContent extends StatelessWidget {
                 }
                 return AppColors.textSecondary;
               }),
+              // 确保文本水平显示，防止竖排
+              textStyle: WidgetStateProperty.all(
+                const TextStyle(
+                  fontSize: 14,
+                  height: 1.0,
+                  inherit: false,
+                ),
+              ),
             ),
           );
         },
@@ -258,161 +269,40 @@ class _TaskManagementPageContent extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Row(
         children: [
-          // 项目筛选
-          _buildProjectFilter(context),
-          const SizedBox(width: 16),
-          // 状态筛选
-          _buildStatusFilter(context),
-          const SizedBox(width: 16),
-          // 搜索框
-          Expanded(
-            child: _buildSearchField(context),
-          ),
+          // 人员筛选
+          _buildAssigneeFilter(context),
         ],
       ),
     );
   }
 
-  Widget _buildProjectFilter(BuildContext context) {
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<int?>(
-        value: context.select((TaskBloc bloc) => bloc.state.selectedProjectId),
-        hint: isLoadingProjects 
-            ? const Text('加载中...')
-            : const Text('所有项目'),
-        isDense: true,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        items: [
-          const DropdownMenuItem(
-            value: null,
-            child: Text('所有项目'),
-          ),
-          ...projects.map((project) => DropdownMenuItem(
-            value: project.id,
-            child: Text(
-              project.title,
-              overflow: TextOverflow.ellipsis,
-            ),
-          )),
-        ],
-        onChanged: (value) {
-          context.read<TaskBloc>().add(TaskProjectFilterChanged(value));
-        },
-      ),
-    );
-  }
-
-  Widget _buildStatusFilter(BuildContext context) {
+  Widget _buildAssigneeFilter(BuildContext context) {
     return DropdownButtonHideUnderline(
       child: DropdownButton<String?>(
         value: context.select(
-          (TaskBloc bloc) => bloc.state.filter?.status,
+          (TaskBloc bloc) => bloc.state.selectedAssigneeFilter,
         ),
-        hint: const Text('所有状态'),
+        hint: const Text('所有人员'),
         isDense: true,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        items: [
-          const DropdownMenuItem(
+        items: const [
+          DropdownMenuItem(
             value: null,
-            child: Text('所有状态'),
+            child: Text('所有人员'),
           ),
           DropdownMenuItem(
-            value: 'planning',
-            child: Row(
-              children: [
-                _buildStatusDot(AppColors.statusPlanning),
-                const SizedBox(width: 8),
-                const Text('规划中'),
-              ],
-            ),
+            value: 'me',
+            child: Text('我负责的'),
           ),
           DropdownMenuItem(
-            value: 'pending',
-            child: Row(
-              children: [
-                _buildStatusDot(AppColors.statusPending),
-                const SizedBox(width: 8),
-                const Text('待处理'),
-              ],
-            ),
-          ),
-          DropdownMenuItem(
-            value: 'in_progress',
-            child: Row(
-              children: [
-                _buildStatusDot(AppColors.statusInProgress),
-                const SizedBox(width: 8),
-                const Text('进行中'),
-              ],
-            ),
-          ),
-          DropdownMenuItem(
-            value: 'completed',
-            child: Row(
-              children: [
-                _buildStatusDot(AppColors.statusCompleted),
-                const SizedBox(width: 8),
-                const Text('已完成'),
-              ],
-            ),
+            value: 'others',
+            child: Text('其他成员'),
           ),
         ],
         onChanged: (value) {
-          final currentFilter = context.read<TaskBloc>().state.filter;
-          context.read<TaskBloc>().add(
-            TaskFilterChanged(
-              TaskFilter(
-                status: value,
-                assignee: currentFilter?.assignee,
-                search: currentFilter?.search,
-              ),
-            ),
-          );
+          context.read<TaskBloc>().add(TaskAssigneeFilterChanged(value));
         },
       ),
-    );
-  }
-
-  Widget _buildStatusDot(Color color) {
-    return Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(4),
-      ),
-    );
-  }
-
-  Widget _buildSearchField(BuildContext context) {
-    return TextField(
-      decoration: InputDecoration(
-        hintText: '搜索任务...',
-        prefixIcon: const Icon(Icons.search, size: 20),
-        isDense: true,
-        filled: true,
-        fillColor: AppColors.surface,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
-      ),
-      onChanged: (value) {
-        final currentFilter = context.read<TaskBloc>().state.filter;
-        context.read<TaskBloc>().add(
-          TaskFilterChanged(
-            TaskFilter(
-              status: currentFilter?.status,
-              assignee: currentFilter?.assignee,
-              search: value.isEmpty ? null : value,
-            ),
-          ),
-        );
-      },
     );
   }
 

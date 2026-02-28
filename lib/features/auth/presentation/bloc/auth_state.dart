@@ -22,18 +22,36 @@ class AuthInitial extends AuthState {}
 /// 加载中
 class AuthLoading extends AuthState {}
 
+/// 团队信息
+class TeamInfo extends Equatable {
+  final int id;
+  final String name;
+
+  const TeamInfo({
+    required this.id,
+    required this.name,
+  });
+
+  @override
+  List<Object?> get props => [id, name];
+}
+
 /// 已认证
 class AuthAuthenticated extends AuthState {
   final String userId;
   final String username;
   final String email;
   final UserRole role;
+  final String? avatar;
+  final TeamInfo? team;
 
   const AuthAuthenticated({
     required this.userId,
     required this.username,
     required this.email,
     required this.role,
+    this.avatar,
+    this.team,
   });
 
   bool get isVisitor => role == UserRole.visitor;
@@ -53,8 +71,27 @@ class AuthAuthenticated extends AuthState {
     }
   }
 
+  /// 复制并修改属性
+  AuthAuthenticated copyWith({
+    String? userId,
+    String? username,
+    String? email,
+    UserRole? role,
+    String? avatar,
+    TeamInfo? team,
+  }) {
+    return AuthAuthenticated(
+      userId: userId ?? this.userId,
+      username: username ?? this.username,
+      email: email ?? this.email,
+      role: role ?? this.role,
+      avatar: avatar ?? this.avatar,
+      team: team ?? this.team,
+    );
+  }
+
   @override
-  List<Object?> get props => [userId, username, email, role];
+  List<Object?> get props => [userId, username, email, role, avatar, team];
 }
 
 /// 未认证

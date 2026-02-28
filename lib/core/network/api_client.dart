@@ -5,7 +5,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// API 客户端配置
 /// 对接本地 8801 端口后端服务
 class ApiClient {
-  static const String baseUrl = 'http://localhost:8801/api';
+  static const String _defaultBaseUrl = 'http://10.0.0.61:8801/api';
+  static const String _envBaseUrl =
+      String.fromEnvironment('API_BASE_URL', defaultValue: '');
+
+  static String get baseUrl {
+    if (_envBaseUrl.isNotEmpty) return _envBaseUrl;
+
+    if (kIsWeb) {
+      final base = Uri.base;
+      final scheme = base.scheme.isEmpty ? 'http' : base.scheme;
+      final host = base.host;
+      if (host.isEmpty) return _defaultBaseUrl;
+      return '$scheme://$host:8801/api';
+    }
+
+    return _defaultBaseUrl;
+  }
+
   static const String _tokenKey = 'auth_token';
   static const String _refreshTokenKey = 'refresh_token';
   

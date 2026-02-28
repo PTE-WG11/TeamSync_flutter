@@ -187,10 +187,10 @@ class _TaskDetailDialogState extends State<TaskDetailDialog> {
           const SizedBox(height: 16),
         ],
         // 负责人
-        _buildInfoRow(
-          icon: Icons.person_outline,
+        _buildAssigneeRow(
           label: '负责人',
-          value: widget.task.assigneeName,
+          name: widget.task.assigneeName,
+          avatar: widget.task.assigneeAvatar,
         ),
         const SizedBox(height: 12),
         // 时间范围
@@ -221,6 +221,49 @@ class _TaskDetailDialogState extends State<TaskDetailDialog> {
         ),
         Text(
           value,
+          style: AppTypography.bodySmall,
+        ),
+      ],
+    );
+  }
+
+  /// 构建负责人行（带头像）
+  Widget _buildAssigneeRow({
+    required String label,
+    required String name,
+    String? avatar,
+  }) {
+    final hasAvatar = avatar != null && avatar.trim().isNotEmpty;
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+    return Row(
+      children: [
+        Icon(Icons.person_outline, size: 16, color: AppColors.textSecondary),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        CircleAvatar(
+          radius: 10,
+          backgroundColor: AppColors.primaryLight,
+          backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
+          child: hasAvatar
+              ? null
+              : Text(
+                  initial,
+                  style: const TextStyle(
+                    fontSize: 8,
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          name,
           style: AppTypography.bodySmall,
         ),
       ],
@@ -378,14 +421,34 @@ class _TaskDetailDialogState extends State<TaskDetailDialog> {
               ],
             ),
           ),
-          // 负责人
-          Text(
-            subTask.assigneeName,
-            style: AppTypography.caption.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
+          // 负责人头像
+          _buildSubTaskAssignee(subTask.assigneeName, subTask.assigneeAvatar),
         ],
+      ),
+    );
+  }
+
+  /// 构建子任务负责人头像
+  Widget _buildSubTaskAssignee(String name, String? avatar) {
+    final hasAvatar = avatar != null && avatar.trim().isNotEmpty;
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+    return Tooltip(
+      message: name,
+      child: CircleAvatar(
+        radius: 10,
+        backgroundColor: AppColors.primaryLight,
+        backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
+        child: hasAvatar
+            ? null
+            : Text(
+                initial,
+                style: const TextStyle(
+                  fontSize: 8,
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
       ),
     );
   }

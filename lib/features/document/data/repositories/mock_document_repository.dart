@@ -353,7 +353,25 @@ Authorization: Bearer {token}
         d.title.toLowerCase().contains(keyword.toLowerCase()));
     }
     
-    return result.toList();
+    // 列表不返回 content，模拟后端列表接口只返回基本信息
+    return result.map((doc) => DocumentModel(
+      id: doc.id,
+      projectId: doc.projectId,
+      folderId: doc.folderId,
+      title: doc.title,
+      type: doc.type,
+      status: doc.status,
+      fileName: doc.fileName,
+      fileSize: doc.fileSize,
+      fileUrl: doc.fileUrl,
+      downloadUrl: doc.downloadUrl,
+      content: null, // 列表不返回 content
+      version: doc.version,
+      versionCount: doc.versionCount,
+      uploader: doc.uploader,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+    )).toList();
   }
 
   @override
@@ -363,6 +381,13 @@ Authorization: Bearer {token}
       (d) => d.id == documentId,
       orElse: () => throw Exception('Document not found'),
     );
+    // 返回完整的文档信息（包括 content）
+    // 对于 Markdown 类型，确保有 content
+    if (doc.type == DocumentType.markdown && (doc.content == null || doc.content!.isEmpty)) {
+      // 如果 content 为空，从原始数据中查找
+      final originalDoc = _documents.firstWhere((d) => d.id == documentId);
+      return originalDoc;
+    }
     return doc;
   }
 

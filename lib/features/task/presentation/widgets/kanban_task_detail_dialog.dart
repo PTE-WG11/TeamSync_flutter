@@ -287,9 +287,10 @@ class _KanbanTaskDetailDialogState extends State<KanbanTaskDetailDialog> {
         // 信息行
         _buildInfoRow('所属项目', widget.task.project?.title ?? '未知项目'),
         _buildInfoRow('任务类型', widget.task.isMainTask ? '主任务' : '子任务'),
-        _buildInfoRow(
+        _buildAssigneeRow(
           '负责人',
-          widget.task.assigneeName.isNotEmpty ? widget.task.assigneeName : '未分配',
+          widget.task.assigneeName,
+          widget.task.assigneeAvatar,
         ),
         _buildInfoRow(
           '创建者',
@@ -696,6 +697,44 @@ class _KanbanTaskDetailDialogState extends State<KanbanTaskDetailDialog> {
                 fontWeight: FontWeight.w600,
                 color: valueColor,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 构建负责人行（带头像）
+  Widget _buildAssigneeRow(String label, String name, String? avatar) {
+    final hasAvatar = avatar != null && avatar.trim().isNotEmpty;
+    final displayName = name.isNotEmpty ? name : '未分配';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              '$label: ',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          if (hasAvatar) ...[
+            CircleAvatar(
+              radius: 10,
+              backgroundColor: AppColors.primaryLight,
+              backgroundImage: NetworkImage(avatar),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Text(
+            displayName,
+            style: AppTypography.bodySmall.copyWith(
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],

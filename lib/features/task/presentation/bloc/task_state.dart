@@ -17,6 +17,7 @@ class TaskState extends Equatable {
   final DateTimeRange? ganttDateRange;
   final TaskFilter? filter;
   final int? selectedProjectId;
+  final String? selectedAssigneeFilter; // 'all', 'me', 'others'
   final int totalCount;
   final String? errorMessage;
   final Set<int> expandedTaskIds; // 展开的主任务ID列表
@@ -30,6 +31,7 @@ class TaskState extends Equatable {
     this.ganttDateRange,
     this.filter,
     this.selectedProjectId,
+    this.selectedAssigneeFilter,
     this.totalCount = 0,
     this.errorMessage,
     this.expandedTaskIds = const {},
@@ -44,6 +46,7 @@ class TaskState extends Equatable {
     DateTimeRange? ganttDateRange,
     TaskFilter? filter,
     int? selectedProjectId,
+    String? selectedAssigneeFilter,
     int? totalCount,
     String? errorMessage,
     Set<int>? expandedTaskIds,
@@ -57,6 +60,7 @@ class TaskState extends Equatable {
       ganttDateRange: ganttDateRange ?? this.ganttDateRange,
       filter: filter ?? this.filter,
       selectedProjectId: selectedProjectId ?? this.selectedProjectId,
+      selectedAssigneeFilter: selectedAssigneeFilter ?? this.selectedAssigneeFilter,
       totalCount: totalCount ?? this.totalCount,
       errorMessage: errorMessage ?? this.errorMessage,
       expandedTaskIds: expandedTaskIds ?? this.expandedTaskIds,
@@ -73,6 +77,7 @@ class TaskState extends Equatable {
         ganttDateRange,
         filter,
         selectedProjectId,
+        selectedAssigneeFilter,
         totalCount,
         errorMessage,
         expandedTaskIds,

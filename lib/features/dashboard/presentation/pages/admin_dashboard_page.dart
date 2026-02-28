@@ -259,18 +259,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             // 头像和用户名
             Row(
               children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: AppColors.primaryLight,
-                  child: Text(
-                    member.username.isNotEmpty ? member.username[0] : '?',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+                _buildMemberAvatar(member),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -316,6 +305,28 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ],
         ),
       ),
+    );
+  }
+
+  /// 构建成员头像
+  Widget _buildMemberAvatar(MemberWorkload member) {
+    final hasAvatar = member.avatar != null && member.avatar!.trim().isNotEmpty;
+    final initial = member.username.isNotEmpty ? member.username[0].toUpperCase() : '?';
+
+    return CircleAvatar(
+      radius: 14,
+      backgroundColor: AppColors.primaryLight,
+      backgroundImage: hasAvatar ? NetworkImage(member.avatar!) : null,
+      child: hasAvatar
+          ? null
+          : Text(
+              initial,
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
     );
   }
 

@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/theme.dart';
 import '../../domain/entities/document.dart';
+import '../../domain/repositories/document_repository.dart';
 import 'comment_section.dart';
 import 'markdown_preview.dart';
 
 /// 预览面板组件
 class PreviewPanel extends StatelessWidget {
   final Document document;
+  final bool isLoading;
   final VoidCallback? onClose;
   final VoidCallback? onEdit;
   final VoidCallback? onDownload;
@@ -16,6 +19,7 @@ class PreviewPanel extends StatelessWidget {
   const PreviewPanel({
     super.key,
     required this.document,
+    this.isLoading = false,
     this.onClose,
     this.onEdit,
     this.onDownload,
@@ -39,7 +43,24 @@ class PreviewPanel extends StatelessWidget {
           const Divider(height: 1),
           // 内容区域
           Expanded(
-            child: _buildContent(),
+            child: isLoading
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(strokeWidth: 2),
+                        SizedBox(height: 16),
+                        Text(
+                          '加载中...',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : _buildContent(context),
           ),
           // 分割线
           const Divider(height: 1),
@@ -63,7 +84,7 @@ class PreviewPanel extends StatelessWidget {
             _buildActionButton(
               icon: Icons.edit_outlined,
               label: '编辑',
-              onTap: onEdit,
+              onTap: isLoading ? null : onEdit,
             ),
           if (document.isEditable)
             const SizedBox(width: 8),
@@ -71,7 +92,7 @@ class PreviewPanel extends StatelessWidget {
           _buildActionButton(
             icon: Icons.download_outlined,
             label: '下载',
-            onTap: onDownload,
+            onTap: isLoading ? null : onDownload,
           ),
           const SizedBox(width: 8),
           // 分享按钮
@@ -122,14 +143,14 @@ class PreviewPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildContent(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 文件预览区
-          _buildPreviewArea(),
+          _buildPreviewArea(context),
           const SizedBox(height: 20),
           // 文件信息
           _buildFileInfo(),
@@ -138,12 +159,12 @@ class PreviewPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildPreviewArea() {
+  Widget _buildPreviewArea(BuildContext context) {
     switch (document.type) {
       case DocumentType.markdown:
         return MarkdownPreview(content: document.content ?? '');
       case DocumentType.image:
-        return _buildImagePreview();
+        return _buildImagePreview(context);
       case DocumentType.pdf:
         return _buildPdfPreview();
       default:
@@ -151,7 +172,102 @@ class PreviewPanel extends StatelessWidget {
     }
   }
 
-  Widget _buildImagePreview() {
+  Widget _buildImagePreview(BuildContext context) {
+    debugPrint('[PreviewPanel] 图片预览 - document.id: ${document.id}');
+    debugPrint('[PreviewPanel] 图片预览 - fileUrl: "${document.fileUrl}"');
+    debugPrint('[PreviewPanel] 图片预览 - downloadUrl: "${document.downloadUrl}"');
+    
+    // 如果 fileUrl 不为空，直接使用
+    if (document.fileUrl.isNotEmpty) {
+      debugPrint('[PreviewPanel] 使用 fileUrl 加载图片');
+      return _buildImageWidget(document.fileUrl);
+    }
+    
+    // 如果 downloadUrl 不为空，使用它
+    if (document.downloadUrl.isNotEmpty) {
+      debugPrint('[PreviewPanel] 使用 downloadUrl 加载图片');
+      return _buildImageWidget(document.downloadUrl);
+    }
+    
+    // 否则通过接口获取下载链接
+    debugPrint('[PreviewPanel] 通过接口获取图片下载链接');
+    return FutureBuilder<String>(
+      future: context.read<DocumentRepository>().getDownloadUrl(document.id, inline: true),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            width: double.infinity,
+            height: 200,
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        }
+        
+        if (snapshot.hasError) {
+          debugPrint('[PreviewPanel] 获取下载链接失败: ${snapshot.error}');
+          return _buildImageErrorWidget('获取图片链接失败: ${snapshot.error}');
+        }
+        
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          debugPrint('[PreviewPanel] 下载链接为空');
+          return _buildImageErrorWidget('图片链接为空');
+        }
+        
+        return _buildImageWidget(snapshot.data!);
+      },
+    );
+  }
+  
+  Widget _buildImageErrorWidget(String message) {
+    return Container(
+      width: double.infinity,
+      height: 200,
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.broken_image_outlined,
+              size: 48,
+              color: AppColors.textDisabled,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '图片加载失败',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              style: AppTypography.caption.copyWith(
+                color: AppColors.textDisabled,
+                fontSize: 10,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildImageWidget(String imageUrl) {
+    // 调试日志
+    debugPrint('[PreviewPanel] 加载图片: $imageUrl');
+    
     return Container(
       width: double.infinity,
       height: 200,
@@ -162,9 +278,26 @@ class PreviewPanel extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadius.lg),
         child: Image.network(
-          document.fileUrl,
+          imageUrl,
           fit: BoxFit.contain,
+          // 添加跨域支持（Web 需要）
+          headers: const {
+            'Access-Control-Allow-Origin': '*',
+          },
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            );
+          },
           errorBuilder: (context, error, stackTrace) {
+            debugPrint('[PreviewPanel] 图片加载失败: $error');
+            debugPrint('[PreviewPanel] URL: $imageUrl');
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -179,6 +312,14 @@ class PreviewPanel extends StatelessWidget {
                     '图片加载失败',
                     style: AppTypography.bodySmall.copyWith(
                       color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '请检查网络或CORS配置',
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.textDisabled,
+                      fontSize: 10,
                     ),
                   ),
                 ],
@@ -412,13 +553,17 @@ class PreviewPanel extends StatelessWidget {
 class MarkdownEditor extends StatefulWidget {
   final String initialContent;
   final String title;
-  final ValueChanged<String>? onSave;
+  final bool isNewDocument;
+  final String? folderName;
+  final void Function(String title, String content)? onSave;
   final VoidCallback? onCancel;
 
   const MarkdownEditor({
     super.key,
     required this.initialContent,
     required this.title,
+    this.isNewDocument = false,
+    this.folderName,
     this.onSave,
     this.onCancel,
   });
@@ -428,47 +573,53 @@ class MarkdownEditor extends StatefulWidget {
 }
 
 class _MarkdownEditorState extends State<MarkdownEditor> {
-  late final TextEditingController _controller;
+  late final TextEditingController _contentController;
+  late final TextEditingController _titleController;
   bool _isPreview = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialContent);
+    _contentController = TextEditingController(text: widget.initialContent);
+    _titleController = TextEditingController(text: widget.isNewDocument ? '' : widget.title);
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _contentController.dispose();
+    _titleController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 600,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-      ),
-      child: Column(
-        children: [
-          // 标题栏
-          _buildHeader(),
-          const Divider(height: 1),
-          // 工具栏
-          _buildToolbar(),
-          const Divider(height: 1),
-          // 编辑器/预览区
-          Expanded(
-            child: _isPreview
-                ? MarkdownPreview(content: _controller.text)
-                : _buildEditor(),
-          ),
-          const Divider(height: 1),
-          // 底部按钮
-          _buildFooter(),
-        ],
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: 600,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+        ),
+        child: Column(
+          children: [
+            // 标题栏
+            _buildHeader(),
+            const Divider(height: 1),
+            // 工具栏
+            _buildToolbar(),
+            const Divider(height: 1),
+            // 编辑器/预览区
+            Expanded(
+              child: _isPreview
+                  ? MarkdownPreview(content: _contentController.text)
+                  : _buildEditor(),
+            ),
+            const Divider(height: 1),
+            // 底部按钮
+            _buildFooter(),
+          ],
+        ),
       ),
     );
   }
@@ -476,14 +627,62 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text('编辑: ${widget.title}', style: AppTypography.h4),
-          const Spacer(),
-          IconButton(
-            onPressed: widget.onCancel,
-            icon: const Icon(Icons.close),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.isNewDocument ? '新建 Markdown 文档' : '编辑: ${widget.title}',
+                  style: AppTypography.h4,
+                ),
+              ),
+              IconButton(
+                onPressed: widget.onCancel,
+                icon: const Icon(Icons.close),
+              ),
+            ],
           ),
+          if (widget.isNewDocument) ...[
+            const SizedBox(height: 12),
+            // 标题输入框
+            TextField(
+              controller: _titleController,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: '请输入文档标题',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                isDense: true,
+              ),
+              style: AppTypography.body,
+            ),
+            // 文件夹信息
+            if (widget.folderName != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.folder,
+                      size: 14,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '将保存到: ${widget.folderName}',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ],
       ),
     );
@@ -519,9 +718,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   Widget _buildToolButton(IconData icon, String tooltip, VoidCallback onTap) {
     return Tooltip(
       message: tooltip,
-      child: InkWell(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: Icon(icon, size: 20, color: AppColors.textSecondary),
@@ -532,7 +731,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
   Widget _buildEditor() {
     return TextField(
-      controller: _controller,
+      controller: _contentController,
       maxLines: null,
       expands: true,
       decoration: InputDecoration(
@@ -559,13 +758,18 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           const SizedBox(width: 12),
           ElevatedButton(
             onPressed: () {
-              widget.onSave?.call(_controller.text);
+              final title = widget.isNewDocument 
+                  ? _titleController.text.trim() 
+                  : widget.title;
+              if (title.isNotEmpty) {
+                widget.onSave?.call(title, _contentController.text);
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: AppColors.textInverse,
             ),
-            child: const Text('保存'),
+            child: Text(widget.isNewDocument ? '创建' : '保存'),
           ),
         ],
       ),
@@ -573,8 +777,8 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   void _insertText(String before, String after) {
-    final text = _controller.text;
-    final selection = _controller.selection;
+    final text = _contentController.text;
+    final selection = _contentController.selection;
     final selectedText = selection.textInside(text);
     
     final newText = text.replaceRange(
@@ -583,7 +787,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       '$before$selectedText$after',
     );
     
-    _controller.value = TextEditingValue(
+    _contentController.value = TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(
         offset: selection.start + before.length + selectedText.length,

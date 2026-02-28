@@ -218,20 +218,7 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircleAvatar(
-                      radius: 12,
-                      backgroundColor: AppColors.primaryLight,
-                      child: Text(
-                        member.username.isNotEmpty
-                            ? member.username[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                    _buildMemberAvatar(member),
                     const SizedBox(width: 8),
                     Text(
                       member.username,
@@ -268,6 +255,28 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
             ),
           ),
       ],
+    );
+  }
+
+  /// 构建成员头像
+  Widget _buildMemberAvatar(ProjectMember member) {
+    final hasAvatar = member.avatar != null && member.avatar!.trim().isNotEmpty;
+    final initial = member.username.isNotEmpty ? member.username[0].toUpperCase() : '?';
+
+    return CircleAvatar(
+      radius: 12,
+      backgroundColor: AppColors.primaryLight,
+      backgroundImage: hasAvatar ? NetworkImage(member.avatar!) : null,
+      child: hasAvatar
+          ? null
+          : Text(
+              initial,
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
     );
   }
 

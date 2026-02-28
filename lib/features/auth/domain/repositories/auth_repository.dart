@@ -29,6 +29,31 @@ abstract class AuthRepository {
   /// GET /api/auth/me/
   Future<UserInfo> getCurrentUser();
 
+  /// 更新当前用户信息
+  /// PATCH /api/auth/me/update/
+  Future<UserInfo> updateCurrentUser({
+    String? username,
+    String? email,
+    String? avatar,
+  });
+
+  /// 修改密码
+  /// POST /api/auth/me/password/
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+    required String newPasswordConfirm,
+  });
+
+  /// 上传头像
+  /// POST /api/auth/me/avatar/upload/
+  /// 返回: {avatar: string, user: UserInfo}
+  Future<AvatarUploadResult> uploadAvatar({
+    required List<int> fileBytes,
+    required String fileName,
+    required String mimeType,
+  });
+
   /// 刷新 token
   /// POST /api/auth/refresh/
   Future<TokenRefreshResult> refreshToken(String refreshToken);
@@ -126,6 +151,17 @@ class TokenRefreshResult {
   });
 }
 
+/// 头像上传结果
+class AvatarUploadResult {
+  final String avatarUrl;
+  final UserInfo user;
+
+  AvatarUploadResult({
+    required this.avatarUrl,
+    required this.user,
+  });
+}
+
 /// 访客状态
 class VisitorStatus {
   final bool isVisitor;
@@ -135,4 +171,25 @@ class VisitorStatus {
     required this.isVisitor,
     this.status,
   });
+}
+
+/// 更新用户请求
+class UpdateUserRequest {
+  final String? username;
+  final String? email;
+  final String? avatar;
+
+  UpdateUserRequest({
+    this.username,
+    this.email,
+    this.avatar,
+  });
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = {};
+    if (username != null) data['username'] = username;
+    if (email != null) data['email'] = email;
+    if (avatar != null) data['avatar'] = avatar;
+    return data;
+  }
 }

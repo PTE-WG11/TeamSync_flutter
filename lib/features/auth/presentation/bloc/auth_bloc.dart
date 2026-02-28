@@ -26,6 +26,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthRegisterRequested>(_onRegisterRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthCheckRequested>(_onCheckRequested);
+    on<AuthUserUpdated>(_onUserUpdated);
   }
 
   /// 处理登录请求
@@ -63,6 +64,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         username: user.username,
         email: user.email,
         role: _parseRole(user.role),
+        avatar: user.avatar,
+        team: user.team != null
+            ? TeamInfo(
+                id: user.team!.id,
+                name: user.team!.name,
+              )
+            : null,
       ));
     } catch (e) {
       emit(AuthError(message: '登录失败: $e'));
@@ -159,6 +167,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             username: user.username,
             email: user.email,
             role: _parseRole(user.role),
+            avatar: user.avatar,
+            team: user.team != null
+                ? TeamInfo(
+                    id: user.team!.id,
+                    name: user.team!.name,
+                  )
+                : null,
           ));
         } catch (e) {
           // token 可能已过期，清除本地存储
@@ -170,6 +185,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
     } catch (e) {
       emit(AuthUnauthenticated());
+    }
+  }
+
+  /// 处理用户信息更新
+  Future<void> _onUserUpdated(
+    AuthUserUpdated event,
+    Emitter<AuthState> emit,
+  ) async {
+    if (state is AuthAuthenticated) {
+      final currentState = state as AuthAuthenticated;
+      final user = event.user;
+      
+      emit(currentState.copyWith(
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar,
+        team: user.team != null
+            ? TeamInfo(
+                id: user.team!.id,
+                name: user.team!.name,
+              )
+            : null,
+      ));
     }
   }
 

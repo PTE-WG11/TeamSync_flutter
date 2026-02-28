@@ -256,18 +256,40 @@ class DocumentBloc extends Bloc<DocumentEvent, DocumentState> {
     emit(state.copyWith(viewMode: event.viewMode));
   }
 
-  void _onDocumentSelected(
+  Future<void> _onDocumentSelected(
     DocumentSelected event,
     Emitter<DocumentState> emit,
-  ) {
-    emit(state.copyWith(selectedDocumentId: event.documentId));
+  ) async {
+    // 先设置选中的文档ID，并清除之前的详情
+    emit(state.copyWith(
+      selectedDocumentId: event.documentId,
+      clearSelectedDocumentDetail: true,
+    ));
+    
+    // 异步加载文档详情
+    emit(state.copyWith(isLoadingDetail: true));
+    try {
+      final document = await _repository.getDocument(event.documentId);
+      emit(state.copyWith(
+        isLoadingDetail: false,
+        selectedDocumentDetail: document,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        isLoadingDetail: false,
+        error: '加载文档详情失败: $e',
+      ));
+    }
   }
 
   void _onClearSelection(
     DocumentClearSelection event,
     Emitter<DocumentState> emit,
   ) {
-    emit(state.copyWith(selectedDocumentId: null));
+    emit(state.copyWith(
+      selectedDocumentId: null,
+      clearSelectedDocumentDetail: true,
+    ));
   }
 
   Future<void> _onUpdateMarkdown(

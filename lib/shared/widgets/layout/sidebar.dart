@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../config/theme.dart';
 
 /// 侧边栏导航项
@@ -89,19 +90,7 @@ class Sidebar extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: AppColors.primaryLight,
-                      child: avatar != null
-                          ? null
-                          : Text(
-                              userName.isNotEmpty ? userName[0] : '?',
-                              style: const TextStyle(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                    ),
+                    _buildAvatar(),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -157,7 +146,7 @@ class Sidebar extends StatelessWidget {
                 _buildBottomItem(
                   icon: Icons.settings_outlined,
                   label: '个人设置',
-                  onTap: () {},
+                  onTap: () => context.go('/settings'),
                 ),
                 const SizedBox(height: 4),
                 _buildBottomItem(
@@ -189,6 +178,27 @@ class Sidebar extends StatelessWidget {
           style: AppTypography.caption,
         ),
       ],
+    );
+  }
+
+  /// 构建用户头像
+  Widget _buildAvatar() {
+    final hasValidAvatar = avatar != null && avatar!.trim().isNotEmpty;
+    final initial = userName.isNotEmpty ? userName[0].toUpperCase() : '?';
+
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: AppColors.primaryLight,
+      backgroundImage: hasValidAvatar ? NetworkImage(avatar!) : null,
+      child: hasValidAvatar
+          ? null
+          : Text(
+              initial,
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
     );
   }
 

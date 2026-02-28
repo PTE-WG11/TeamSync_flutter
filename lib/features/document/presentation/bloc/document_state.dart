@@ -30,6 +30,10 @@ class DocumentState extends Equatable {
   final DocumentViewMode viewMode;
   final String? selectedDocumentId;
   final Document? lastCreatedDocument;
+  
+  // 选中文档详情（包含完整内容）
+  final Document? selectedDocumentDetail;
+  final bool isLoadingDetail; // 是否正在加载文档详情
 
   const DocumentState({
     this.documents = const [],
@@ -45,9 +49,11 @@ class DocumentState extends Equatable {
     this.searchKeyword,
     this.currentPage = 1,
     this.totalPages = 1,
-    this.viewMode = DocumentViewMode.grid,
+    this.viewMode = DocumentViewMode.list,
     this.selectedDocumentId,
     this.lastCreatedDocument,
+    this.selectedDocumentDetail,
+    this.isLoadingDetail = false,
   });
 
   DocumentState copyWith({
@@ -67,11 +73,14 @@ class DocumentState extends Equatable {
     DocumentViewMode? viewMode,
     String? selectedDocumentId,
     Document? lastCreatedDocument,
+    Document? selectedDocumentDetail,
+    bool? isLoadingDetail,
     bool clearError = false,
     bool clearSelectedFolder = false,
     bool clearFilterType = false,
     bool clearSearchKeyword = false,
     bool clearLastCreated = false,
+    bool clearSelectedDocumentDetail = false,
   }) {
     return DocumentState(
       documents: documents ?? this.documents,
@@ -90,6 +99,8 @@ class DocumentState extends Equatable {
       viewMode: viewMode ?? this.viewMode,
       selectedDocumentId: selectedDocumentId ?? this.selectedDocumentId,
       lastCreatedDocument: clearLastCreated ? null : lastCreatedDocument ?? this.lastCreatedDocument,
+      selectedDocumentDetail: clearSelectedDocumentDetail ? null : selectedDocumentDetail ?? this.selectedDocumentDetail,
+      isLoadingDetail: isLoadingDetail ?? this.isLoadingDetail ?? false,
     );
   }
 
@@ -111,10 +122,21 @@ class DocumentState extends Equatable {
         viewMode,
         selectedDocumentId,
         lastCreatedDocument,
+        selectedDocumentDetail,
+        isLoadingDetail,
       ];
 
+  /// 获取选中的文档（优先返回详情，详情不存在则返回列表中的基本信息）
   Document? get selectedDocument {
     if (selectedDocumentId == null) return null;
+    
+    // 优先返回已加载的详情
+    if (selectedDocumentDetail != null && 
+        selectedDocumentDetail!.id == selectedDocumentId) {
+      return selectedDocumentDetail;
+    }
+    
+    // 返回列表中的基本信息
     try {
       return documents.firstWhere(
         (d) => d.id == selectedDocumentId,

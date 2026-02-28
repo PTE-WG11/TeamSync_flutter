@@ -319,23 +319,31 @@ class _TaskCardState extends State<_TaskCard> {
   }
 
   Widget _buildAssigneeChip(String name, String? avatar) {
+    final hasAvatar = avatar != null && avatar.trim().isNotEmpty;
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         CircleAvatar(
           radius: 12,
           backgroundColor: AppColors.primaryLight,
-          backgroundImage: avatar != null ? NetworkImage(avatar) : null,
-          child: avatar == null
-              ? Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+          backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
+          onBackgroundImageError: hasAvatar
+              ? (exception, stackTrace) {
+                  debugPrint('头像加载失败: $avatar, 错误: $exception');
+                }
+              : null,
+          child: hasAvatar
+              ? null
+              : Text(
+                  initial,
                   style: const TextStyle(
                     color: AppColors.primary,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
-                )
-              : null,
+                ),
         ),
         const SizedBox(width: 6),
         Text(
@@ -674,11 +682,7 @@ class _SubTaskCardState extends State<_SubTaskCard> {
                     ],
                     Row(
                       children: [
-                        Icon(
-                          Icons.person_outline,
-                          size: 14,
-                          color: AppColors.textDisabled,
-                        ),
+                        _buildSubTaskAssigneeAvatar(widget.subTask.assigneeName, widget.subTask.assigneeAvatar),
                         const SizedBox(width: 4),
                         Text(
                           widget.subTask.assigneeName,
@@ -910,6 +914,28 @@ class _SubTaskCardState extends State<_SubTaskCard> {
           ),
         ),
       ),
+    );
+  }
+
+  /// 构建子任务负责人头像
+  Widget _buildSubTaskAssigneeAvatar(String name, String? avatar) {
+    final hasAvatar = avatar != null && avatar.trim().isNotEmpty;
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+    return CircleAvatar(
+      radius: 8,
+      backgroundColor: AppColors.primaryLight,
+      backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
+      child: hasAvatar
+          ? null
+          : Text(
+              initial,
+              style: const TextStyle(
+                fontSize: 7,
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
     );
   }
 

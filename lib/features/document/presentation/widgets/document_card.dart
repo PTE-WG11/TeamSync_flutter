@@ -34,175 +34,130 @@ class DocumentCard extends StatelessWidget {
           ),
           boxShadow: isSelected ? AppShadows.card : null,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // 顶部图标和更多按钮
-            _buildHeader(),
-            // 标题
-            _buildTitle(),
-            // 分类标签
-            _buildCategory(),
-            // 上传者信息
-            _buildUploaderInfo(),
-            // 底部状态栏
-            _buildFooter(),
+            // 左侧：文件图标
+            _buildIcon(),
+            // 右侧：内容区域
+            Expanded(
+              child: _buildContent(),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildIcon() {
     return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          // 文件类型图标
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: _getFileColor().withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: Center(
-              child: Icon(
-                _getFileIcon(),
-                size: 24,
-                color: _getFileColor(),
-              ),
-            ),
+      padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: _getFileColor().withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Center(
+          child: Icon(
+            _getFileIcon(),
+            size: 28,
+            color: _getFileColor(),
           ),
-          const Spacer(),
-          // 更多操作按钮
-          if (onMoreTap != null)
-            InkWell(
-              onTap: onMoreTap,
-              borderRadius: BorderRadius.circular(4),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  Icons.more_vert,
-                  size: 18,
-                  color: AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 10, 8, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 标题行（包含标题和更多按钮）
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  document.title,
+                  style: AppTypography.body.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTitle() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Text(
-        document.title,
-        style: AppTypography.body.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-
-  Widget _buildCategory() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-      child: Text(
-        document.typeDisplayName,
-        style: AppTypography.caption.copyWith(
-          color: AppColors.textSecondary,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUploaderInfo() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          // 头像
-          CircleAvatar(
-            radius: 12,
-            backgroundColor: AppColors.primaryLight,
-            backgroundImage: document.uploader.avatar != null
-                ? NetworkImage(document.uploader.avatar!)
-                : null,
-            child: document.uploader.avatar == null
-                ? Text(
-                    document.uploader.name.isNotEmpty
-                        ? document.uploader.name[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+              if (onMoreTap != null)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onMoreTap,
+                  child: const Padding(
+                    padding: EdgeInsets.all(2),
+                    child: Icon(
+                      Icons.more_vert,
+                      size: 18,
+                      color: AppColors.textSecondary,
                     ),
-                  )
-                : null,
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(width: 6),
-          // 名字
-          Expanded(
-            child: Text(
-              document.uploader.name,
-              style: AppTypography.caption.copyWith(
-                color: AppColors.textSecondary,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          // 时间
+          const SizedBox(height: 4),
+          // 文件类型
           Text(
-            _formatTime(document.updatedAt),
-            style: AppTypography.caption.copyWith(
-              color: AppColors.textDisabled,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFooter() {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          // 状态标签
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: _getStatusColor().withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              document.statusDisplayName,
-              style: AppTypography.caption.copyWith(
-                color: _getStatusColor(),
-                fontSize: 11,
-              ),
-            ),
-          ),
-          const Spacer(),
-          // 版本
-          Text(
-            document.version,
+            document.typeDisplayName,
             style: AppTypography.caption.copyWith(
               color: AppColors.textSecondary,
+              fontSize: 11,
             ),
           ),
-          const SizedBox(width: 8),
-          // 文件大小
-          Text(
-            document.formattedFileSize,
-            style: AppTypography.caption.copyWith(
-              color: AppColors.textDisabled,
-            ),
+          const SizedBox(height: 6),
+          // 底部信息行：上传者 + 状态 + 大小
+          Row(
+            children: [
+              // 上传者头像
+              _buildUploaderAvatar(document.uploader),
+              const SizedBox(width: 4),
+              // 上传者名字
+              Expanded(
+                child: Text(
+                  document.uploader.name,
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                    fontSize: 10,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // 状态标签
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: _getStatusColor().withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Text(
+                  document.statusDisplayName,
+                  style: AppTypography.caption.copyWith(
+                    color: _getStatusColor(),
+                    fontSize: 9,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // 文件大小
+              Text(
+                document.formattedFileSize,
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textDisabled,
+                  fontSize: 10,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -260,23 +215,26 @@ class DocumentCard extends StatelessWidget {
     }
   }
 
-  String _formatTime(DateTime time) {
-    final now = DateTime.now();
-    final diff = now.difference(time);
+  /// 构建上传者头像
+  Widget _buildUploaderAvatar(Uploader uploader) {
+    final hasAvatar = uploader.avatar != null && uploader.avatar!.trim().isNotEmpty;
+    final initial = uploader.name.isNotEmpty ? uploader.name[0].toUpperCase() : '?';
 
-    if (diff.inMinutes < 1) {
-      return '刚刚';
-    } else if (diff.inHours < 1) {
-      return '${diff.inMinutes}分钟前';
-    } else if (diff.inDays < 1) {
-      return '${diff.inHours}小时前';
-    } else if (diff.inDays < 7) {
-      return '${diff.inDays}天前';
-    } else if (diff.inDays < 30) {
-      return '${(diff.inDays / 7).floor()}周前';
-    } else {
-      return DateFormat('yyyy-MM-dd').format(time);
-    }
+    return CircleAvatar(
+      radius: 9,
+      backgroundColor: AppColors.primaryLight,
+      backgroundImage: hasAvatar ? NetworkImage(uploader.avatar!) : null,
+      child: hasAvatar
+          ? null
+          : Text(
+              initial,
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontSize: 8,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+    );
   }
 }
 
@@ -401,7 +359,8 @@ class DocumentListItem extends StatelessWidget {
             ),
             // 更多按钮
             if (onMoreTap != null)
-              InkWell(
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: onMoreTap,
                 child: const Padding(
                   padding: EdgeInsets.all(4),

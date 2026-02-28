@@ -16,30 +16,66 @@ class TaskKanbanView extends StatelessWidget {
     required this.columns,
   });
 
+  // 看板列最大宽度
+  static const double _maxColumnWidth = 460;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: columns.asMap().entries.map((entry) {
-        final index = entry.key;
-        final column = entry.value;
-        final isFirst = index == 0;
-        final isLast = index == columns.length - 1;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = constraints.maxWidth;
+        final columnCount = columns.length;
         
-        return Expanded(
-          child: _KanbanColumnWidget(
-            column: column,
-            columnIndex: index,
-            canAcceptFromLeft: !isFirst,
-            canAcceptFromRight: !isLast,
-            onTaskDropped: (task, newStatus) {
-              _handleTaskDropped(context, task, newStatus);
-            },
-            onViewTaskDetail: (task) {
-              _showTaskDetailDialog(context, task);
-            },
+        // 计算每个列的宽度：根据屏幕宽度和列数动态计算，但不超过最大宽度
+        final calculatedWidth = screenWidth / columnCount;
+        final columnWidth = calculatedWidth > _maxColumnWidth ? _maxColumnWidth : calculatedWidth;
+        
+        // 计算总内容宽度和剩余空间
+        final totalContentWidth = columnWidth * columnCount;
+        final remainingSpace = screenWidth - totalContentWidth;
+        
+        // 如果有剩余空间，计算间距（在列之间平均分配）
+        final spacing = remainingSpace > 0 ? remainingSpace / (columnCount + 1) : 8.0;
+        
+        // 构建列列表
+        final columnWidgets = columns.asMap().entries.map((entry) {
+          final index = entry.key;
+          final column = entry.value;
+          final isFirst = index == 0;
+          final isLast = index == columns.length - 1;
+          
+          return Container(
+            width: columnWidth,
+            margin: EdgeInsets.only(
+              left: isFirst ? spacing : spacing / 2,
+              right: isLast ? spacing : spacing / 2,
+            ),
+            child: _KanbanColumnWidget(
+              column: column,
+              columnIndex: index,
+              canAcceptFromLeft: !isFirst,
+              canAcceptFromRight: !isLast,
+              onTaskDropped: (task, newStatus) {
+                _handleTaskDropped(context, task, newStatus);
+              },
+              onViewTaskDetail: (task) {
+                _showTaskDetailDialog(context, task);
+              },
+            ),
+          );
+        }).toList();
+        
+        // 使用 Center + SingleChildScrollView 来居中显示并支持滚动
+        return Center(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: columnWidgets,
+            ),
           ),
         );
-      }).toList(),
+      },
     );
   }
 
@@ -142,11 +178,10 @@ class _KanbanColumnWidget extends StatelessWidget {
       builder: (context, candidateData, rejectedData) {
         final isHovered = candidateData.isNotEmpty;
         
-        final highlightColor = Color(column.color).withOpacity(0.15);
+        final highlightColor = Color(column.color).withValues(alpha: 0.15);
         final borderColor = Color(column.color);
 
         return Container(
-          margin: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: isHovered 
                 ? highlightColor
@@ -396,18 +431,38 @@ class _KanbanTaskCard extends StatelessWidget {
       );
     }
 
-    return CircleAvatar(
-      radius: 12,
-      backgroundColor: AppColors.primaryLight,
-      child: Text(
-        task.assigneeName[0].toUpperCase(),
-        style: const TextStyle(
-          fontSize: 10,
-          color: AppColors.primary,
-          fontWeight: FontWeight.bold,
+    // 检查是否有头像 - 严格检查avatar字段
+    final avatarUrl = task.assigneeAvatar;
+    final hasAvatar = avatarUrl != null && avatarUrl.trim().isNotEmpty;
+    final initial = task.assigneeName.isNotEmpty ? task.assigneeName[0].toUpperCase() : '?';
+
+    if (hasAvatar) {
+      // 有头像时显示头像
+      return CircleAvatar(
+        radius: 12,
+        backgroundColor: AppColors.primaryLight,
+        backgroundImage: NetworkImage(avatarUrl),
+        onBackgroundImageError: (exception, stackTrace) {
+          // 头像加载失败时静默处理，显示首字母
+          debugPrint('头像加载失败: $avatarUrl, 错误: $exception');
+        },
+        child: null,
+      );
+    } else {
+      // 无头像时显示首字母
+      return CircleAvatar(
+        radius: 12,
+        backgroundColor: AppColors.primaryLight,
+        child: Text(
+          initial,
+          style: const TextStyle(
+            fontSize: 10,
+            color: AppColors.primary,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 
   Widget _buildPriorityIndicator() {
@@ -438,7 +493,7 @@ class _KanbanTaskCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Row(
