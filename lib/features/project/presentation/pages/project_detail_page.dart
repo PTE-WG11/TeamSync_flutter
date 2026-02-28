@@ -107,10 +107,39 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
           constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
         ),
         const SizedBox(width: 8),
+        Text(
+          '项目详情',
+          style: AppTypography.h3,
+        ),
+        const SizedBox(width: 24),
+        // Tab切换移动到顶部
         Expanded(
-          child: Text(
-            '项目详情',
-            style: AppTypography.h3,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 300),
+              child: TabBar(
+                controller: _mainTabController!,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                indicator: UnderlineTabIndicator(
+                  borderSide: BorderSide(
+                    width: 2.0,
+                    color: AppColors.primary,
+                  ),
+                ),
+                labelColor: AppColors.primary,
+                unselectedLabelColor: AppColors.textSecondary,
+                labelStyle: AppTypography.body.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                dividerColor: Colors.transparent,
+                tabs: const [
+                  Tab(text: '项目概览'),
+                  Tab(text: '文档管理'),
+                ],
+              ),
+            ),
           ),
         ),
         if (state is ProjectDetailLoadSuccess) ...[
@@ -174,81 +203,25 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
     }
 
     if (state is ProjectDetailLoadSuccess) {
-      
       return Container(
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.xl),
           boxShadow: AppShadows.card,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: TabBarView(
+          controller: _mainTabController!,
           children: [
-            // 一级Tab切换：项目详情 / 文档管理
-            _buildMainTabBar(),
-            const Divider(height: 1),
-            // Tab内容区域
-            Expanded(
-              child: TabBarView(
-                controller: _mainTabController!,
-                children: [
-                  // 项目详情Tab
-                  _buildProjectDetailTab(state),
-                  // 文档管理Tab
-                  _buildDocumentsTab(state),
-                ],
-              ),
-            ),
+            // 项目详情Tab
+            _buildProjectDetailTab(state),
+            // 文档管理Tab
+            _buildDocumentsTab(state),
           ],
         ),
       );
     }
 
     return const Center(child: CircularProgressIndicator());
-  }
-
-  /// 构建一级TabBar（项目详情 / 文档管理）
-  Widget _buildMainTabBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-      child: Row(
-        children: [
-          // 主Tab切换
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-            ),
-            child: TabBar(
-              controller: _mainTabController!,
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              indicator: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-              ),
-              labelColor: AppColors.textInverse,
-              unselectedLabelColor: AppColors.textSecondary,
-              labelStyle: AppTypography.body.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-              dividerColor: Colors.transparent,
-              padding: const EdgeInsets.all(4),
-              tabs: const [
-                Tab(
-                  icon: Icon(Icons.dashboard_outlined, size: 18),
-                  text: '项目详情',
-                ),
-                Tab(
-                  icon: Icon(Icons.folder_copy_outlined, size: 18),
-                  text: '文档管理',
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   /// 构建项目详情Tab内容
@@ -309,21 +282,18 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
         ),
         const Divider(height: 1),
         // 任务视图内容
-        SizedBox(
-          height: MediaQuery.of(context).size.height - 420,
-          child: IndexedStack(
-            index: _selectedTaskViewIndex,
-            children: [
-              // 列表视图
-              _buildListView(state),
-              // 看板视图
-              _buildPlaceholderView('看板视图', Icons.view_kanban),
-              // 甘特图视图
-              _buildPlaceholderView('甘特图视图', Icons.timeline),
-              // 日历视图
-              _buildPlaceholderView('日历视图', Icons.calendar_month),
-            ],
-          ),
+        IndexedStack(
+          index: _selectedTaskViewIndex,
+          children: [
+            // 列表视图
+            _buildListView(state),
+            // 看板视图
+            _buildPlaceholderView('看板视图', Icons.view_kanban),
+            // 甘特图视图
+            _buildPlaceholderView('甘特图视图', Icons.timeline),
+            // 日历视图
+            _buildPlaceholderView('日历视图', Icons.calendar_month),
+          ],
         ),
       ],
     );
@@ -703,49 +673,41 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
   Widget _buildListView(ProjectDetailLoadSuccess state) {
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              child: TaskListWidget(
-                tasks: state.tasks,
-                projectId: state.project.id,
-                isLoading: state.tasksLoading,
-                onCreateTask: () => _showCreateTaskDialog(context, state.project),
-                onSubTaskStatusToggle: (subTaskId) => _handleSubTaskStatusToggle(state, subTaskId),
-                onSubTaskCreateRequest: (parentTaskId, {
-                  required String title,
-                  String? description,
-                  String priority = 'medium',
-                  DateTime? startDate,
-                  DateTime? endDate,
-                }) {
-                  context.read<ProjectBloc>().add(ProjectSubTaskCreateRequested(
-                    parentTaskId: parentTaskId,
-                    title: title,
-                    description: description,
-                    priority: priority,
-                    startDate: startDate,
-                    endDate: endDate,
-                  ));
-                },
-                onTaskEdit: (task) {
-                  context.read<ProjectBloc>().add(ProjectTaskUpdateRequested(
-                    taskId: task.id,
-                    title: task.title,
-                    description: task.description,
-                    status: task.status,
-                    priority: task.priority,
-                    assigneeId: task.assigneeId,
-                    startDate: task.startDate,
-                    endDate: task.endDate,
-                  ));
-                },
-                members: state.project.members,
-              ),
-            ),
-          ),
-        ],
+      child: TaskListWidget(
+        tasks: state.tasks,
+        projectId: state.project.id,
+        isLoading: state.tasksLoading,
+        onCreateTask: () => _showCreateTaskDialog(context, state.project),
+        onSubTaskStatusToggle: (subTaskId) => _handleSubTaskStatusToggle(state, subTaskId),
+        onSubTaskCreateRequest: (parentTaskId, {
+          required String title,
+          String? description,
+          String priority = 'medium',
+          DateTime? startDate,
+          DateTime? endDate,
+        }) {
+          context.read<ProjectBloc>().add(ProjectSubTaskCreateRequested(
+            parentTaskId: parentTaskId,
+            title: title,
+            description: description,
+            priority: priority,
+            startDate: startDate,
+            endDate: endDate,
+          ));
+        },
+        onTaskEdit: (task) {
+          context.read<ProjectBloc>().add(ProjectTaskUpdateRequested(
+            taskId: task.id,
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            priority: task.priority,
+            assigneeId: task.assigneeId,
+            startDate: task.startDate,
+            endDate: task.endDate,
+          ));
+        },
+        members: state.project.members,
       ),
     );
   }
@@ -794,7 +756,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
 
   /// 构建占位视图
   Widget _buildPlaceholderView(String title, IconData icon) {
-    return Center(
+    return Container(
+      height: 300, // 给定一个最小高度，避免塌缩
+      alignment: Alignment.center,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
