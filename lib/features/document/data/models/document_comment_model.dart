@@ -12,31 +12,31 @@ class DocumentCommentModel extends DocumentComment {
 
   factory DocumentCommentModel.fromJson(Map<String, dynamic> json) {
     return DocumentCommentModel(
-      id: json['id'] as String,
-      documentId: json['documentId'] as String,
+      id: json['id'].toString(),
+      documentId: (json['documentId'] ?? json['document_id'] ?? '').toString(),
       content: json['content'] as String,
       author: _parseAuthor(json['author'] as Map<String, dynamic>),
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      createdAt: DateTime.parse(json['created_at'] ?? json['createdAt'] as String),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'documentId': documentId,
+      'document_id': documentId,
       'content': content,
       'author': {
         'id': author.id,
         'name': author.name,
         'avatar': author.avatar,
       },
-      'createdAt': createdAt.toIso8601String(),
+      'created_at': createdAt.toIso8601String(),
     };
   }
 
   static CommentAuthor _parseAuthor(Map<String, dynamic> json) {
     return CommentAuthor(
-      id: json['id'] as String,
+      id: json['id'].toString(),
       name: json['name'] as String,
       avatar: json['avatar'] as String?,
     );

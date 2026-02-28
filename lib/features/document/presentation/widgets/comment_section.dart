@@ -17,7 +17,9 @@ class CommentSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 使用 Key 强制在 documentId 变化时重建整个组件
     return BlocProvider(
+      key: ValueKey(documentId),
       create: (context) => CommentBloc(
         repository: context.read(),
       )..add(CommentsLoadRequested(documentId: documentId)),
@@ -115,6 +117,47 @@ class _CommentSectionViewState extends State<_CommentSectionView> {
         if (state.isLoading) {
           return const Center(
             child: CircularProgressIndicator(strokeWidth: 2),
+          );
+        }
+
+        if (state.error != null) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: AppColors.error,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '加载失败',
+                  style: AppTypography.body.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  state.error!,
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.error,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () {
+                    if (state.documentId != null) {
+                      context.read<CommentBloc>().add(
+                        CommentsLoadRequested(documentId: state.documentId!),
+                      );
+                    }
+                  },
+                  child: const Text('重试'),
+                ),
+              ],
+            ),
           );
         }
 

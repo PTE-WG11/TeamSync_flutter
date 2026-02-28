@@ -61,7 +61,9 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     TasksLoadRequested event,
     Emitter<TaskState> emit,
   ) async {
-    emit(state.copyWith(status: TaskStatus.loading));
+    if (!event.silent) {
+      emit(state.copyWith(status: TaskStatus.loading));
+    }
 
     try {
       switch (state.viewMode) {
@@ -230,26 +232,73 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     TaskStatusChanged event,
     Emitter<TaskState> emit,
   ) async {
-    try {
-      // 获取当前任务
-      final task = state.tasks.firstWhere((t) => t.id == event.taskId);
-      
-      // 检查状态流转是否合法（只能相邻状态流转）
-      if (!_isValidStatusTransition(task.status, event.status)) {
-        emit(state.copyWith(errorMessage: '无效的状态流转'));
-        return;
-      }
+    // 1. 获取当前任务
+    final taskIndex = state.tasks.indexWhere((t) => t.id == event.taskId);
+    if (taskIndex == -1) return;
+    final task = state.tasks[taskIndex];
 
-      // 更新任务状态
+    // 2. 检查状态流转是否合法（只能相邻状态流转）
+    if (!_isValidStatusTransition(task.status, event.status)) {
+      emit(state.copyWith(errorMessage: '无效的状态流转'));
+      return;
+    }
+
+    // 3. 保存原始状态以便回滚
+    final originalTasks = List<Task>.from(state.tasks);
+    final originalColumns = List<KanbanColumn>.from(state.kanbanColumns);
+
+    try {
+      // 4. 乐观更新：本地立即修改状态
+      final updatedTask = task.copyWith(status: event.status);
+      
+      // 更新总任务列表
+      final newTasks = List<Task>.from(state.tasks);
+      newTasks[taskIndex] = updatedTask;
+
+      // 更新看板列数据
+      final newColumns = state.kanbanColumns.map((col) {
+        // 创建新的任务列表
+        final newColTasks = List<Task>.from(col.tasks);
+        
+        // 如果是源列，移除任务
+        if (col.id == task.status) {
+          newColTasks.removeWhere((t) => t.id == task.id);
+        }
+        
+        // 如果是目标列，添加任务
+        if (col.id == event.status) {
+          newColTasks.add(updatedTask);
+        }
+        
+        return KanbanColumn(
+          id: col.id,
+          title: col.title,
+          color: col.color,
+          tasks: newColTasks,
+        );
+      }).toList();
+
+      // 立即发射新状态
+      emit(state.copyWith(
+        tasks: newTasks,
+        kanbanColumns: newColumns,
+      ));
+
+      // 5. 异步调用 API
       await _taskRepository.updateTask(
         event.taskId,
         UpdateTaskRequest(status: event.status),
       );
       
-      // 刷新数据
-      add(const TasksLoadRequested());
+      // 刷新数据（静默）
+      add(const TasksLoadRequested(silent: true));
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      // 6. 失败回滚
+      emit(state.copyWith(
+        tasks: originalTasks,
+        kanbanColumns: originalColumns,
+        errorMessage: '状态更新失败: ${e.toString()}',
+      ));
     }
   }
 
@@ -477,21 +526,66 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     TaskClaimed event,
     Emitter<TaskState> emit,
   ) async {
+    // 1. 获取当前任务
+    final taskIndex = state.tasks.indexWhere((t) => t.id == event.taskId);
+    if (taskIndex == -1) return;
+    final task = state.tasks[taskIndex];
+
+    // 2. 保存原始状态以便回滚
+    final originalTasks = List<Task>.from(state.tasks);
+    final originalColumns = List<KanbanColumn>.from(state.kanbanColumns);
+
     try {
-      emit(state.copyWith(status: TaskStatus.loading));
+      // 3. 乐观更新：本地立即修改状态和结束时间
+      final updatedTask = task.copyWith(
+        status: event.status,
+        endDate: event.endDate,
+      );
       
+      // 更新总任务列表
+      final newTasks = List<Task>.from(state.tasks);
+      newTasks[taskIndex] = updatedTask;
+
+      // 更新看板列数据
+      final newColumns = state.kanbanColumns.map((col) {
+        final newColTasks = List<Task>.from(col.tasks);
+        
+        if (col.id == task.status) {
+          newColTasks.removeWhere((t) => t.id == task.id);
+        }
+        
+        if (col.id == event.status) {
+          newColTasks.add(updatedTask);
+        }
+        
+        return KanbanColumn(
+          id: col.id,
+          title: col.title,
+          color: col.color,
+          tasks: newColTasks,
+        );
+      }).toList();
+
+      emit(state.copyWith(
+        tasks: newTasks,
+        kanbanColumns: newColumns,
+      ));
+
+      // 4. 异步调用 API
       await _taskRepository.claimTask(
         taskId: event.taskId,
         status: event.status,
         endDate: event.endDate,
       );
       
-      // 刷新数据
-      add(const TasksLoadRequested());
+      // 成功后静默刷新
+      add(const TasksLoadRequested(silent: true));
     } catch (e) {
+      // 5. 失败回滚
       emit(state.copyWith(
-        status: TaskStatus.failure,
-        errorMessage: '领取任务失败: $e',
+        tasks: originalTasks,
+        kanbanColumns: originalColumns,
+        errorMessage: '领取任务失败: ${e.toString()}',
       ));
     }
   }

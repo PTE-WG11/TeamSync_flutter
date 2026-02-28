@@ -7,26 +7,6 @@ import '../../domain/repositories/document_repository.dart';
 part 'document_event.dart';
 part 'document_state.dart';
 
-// 更新Markdown文档事件（定义在页面文件中，这里导入）
-class DocumentUpdateMarkdownRequested extends DocumentEvent {
-  final String documentId;
-  final String? title;
-  final String? content;
-  final bool saveAsVersion;
-  final String? versionRemark;
-
-  const DocumentUpdateMarkdownRequested({
-    required this.documentId,
-    this.title,
-    this.content,
-    this.saveAsVersion = false,
-    this.versionRemark,
-  });
-
-  @override
-  List<Object?> get props => [documentId, title, content, saveAsVersion, versionRemark];
-}
-
 /// 文档Bloc
 class DocumentBloc extends Bloc<DocumentEvent, DocumentState> {
   final DocumentRepository _repository;

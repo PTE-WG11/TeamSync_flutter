@@ -708,7 +708,13 @@ class DocumentRepositoryImpl implements DocumentRepository {
       );
       
       if (response.data['code'] == 0 || response.data['code'] == 200) {
-        final data = response.data['data'];
+        var data = response.data['data'];
+        
+        // 处理嵌套结构：如果 data 包含 code 和 data，则说明是双层嵌套
+        if (data is Map<String, dynamic> && data.containsKey('code') && data.containsKey('data')) {
+           data = data['data'];
+        }
+        
         final List<dynamic> list = data is List ? data : (data['list'] ?? []);
         return list.map((json) => DocumentCommentModel.fromJson(json)).toList();
       }
@@ -729,8 +735,13 @@ class DocumentRepositoryImpl implements DocumentRepository {
         data: {'content': content},
       );
       
-      if (response.data['code'] == 0 || response.data['code'] == 200) {
-        return DocumentCommentModel.fromJson(response.data['data']);
+      if (response.data['code'] == 201 || response.data['code'] == 200) {
+        var data = response.data['data'];
+        // 处理嵌套结构
+        if (data is Map<String, dynamic> && data.containsKey('code') && data.containsKey('data')) {
+          data = data['data'];
+        }
+        return DocumentCommentModel.fromJson(data);
       }
       throw Exception(response.data['message'] ?? '发表评论失败');
     } catch (e) {

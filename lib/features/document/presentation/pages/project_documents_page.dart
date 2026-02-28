@@ -1,7 +1,6 @@
 
 
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
@@ -165,6 +164,7 @@ class _ProjectDocumentsViewState extends State<_ProjectDocumentsView> {
       );
   }
 
+  // ignore: unused_element
   Widget _buildFolderPanel() {
     return Container(
       width: 220,
@@ -813,6 +813,7 @@ class _ProjectDocumentsViewState extends State<_ProjectDocumentsView> {
     );
   }
 
+  // ignore: unused_element
   void _showDownloadSnackBar(BuildContext context, String fileName) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

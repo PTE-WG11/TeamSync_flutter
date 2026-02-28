@@ -22,7 +22,12 @@ class TaskViewModeChanged extends TaskEvent {
 
 /// 请求加载任务列表
 class TasksLoadRequested extends TaskEvent {
-  const TasksLoadRequested();
+  final bool silent;
+  
+  const TasksLoadRequested({this.silent = false});
+  
+  @override
+  List<Object?> get props => [silent];
 }
 
 /// 筛选条件变更

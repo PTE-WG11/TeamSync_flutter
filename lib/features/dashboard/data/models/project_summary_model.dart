@@ -23,7 +23,7 @@ class ProjectSummaryModel extends ProjectSummary {
       title: json['title'] ?? '',
       description: json['description'] ?? '',
       status: json['status'] ?? 'planning',
-      progress: (json['progress'] ?? 0.0).toDouble(),
+      progress: _parseProgress(json['progress']),
       completedTasks: json['completed_tasks'] ?? 0,
       totalTasks: json['total_tasks'] ?? 0,
       memberCount: json['member_count'] ?? 0,
@@ -31,6 +31,22 @@ class ProjectSummaryModel extends ProjectSummary {
       endDate: json['end_date'] ?? '',
       overdueTaskCount: json['overdue_task_count'] ?? 0,
     );
+  }
+
+  /// 解析进度值
+  /// 兼容 0-1 小数和 0-100 百分比格式
+  static double _parseProgress(dynamic value) {
+    if (value == null) return 0.0;
+    
+    final double val = (value is int) ? value.toDouble() : (value as double);
+    
+    // 如果值大于 1.0，说明是百分制（例如 25），转换为 0-1 小数（0.25）
+    // 注意：这里假设进度不会超过 100%
+    if (val > 1.0) {
+      return val / 100.0;
+    }
+    
+    return val;
   }
 
   /// 转换为 JSON

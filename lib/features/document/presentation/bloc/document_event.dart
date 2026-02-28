@@ -155,3 +155,23 @@ class DocumentSelected extends DocumentEvent {
 class DocumentClearSelection extends DocumentEvent {
   const DocumentClearSelection();
 }
+
+/// 更新Markdown文档
+class DocumentUpdateMarkdownRequested extends DocumentEvent {
+  final String documentId;
+  final String? title;
+  final String? content;
+  final bool saveAsVersion;
+  final String? versionRemark;
+
+  const DocumentUpdateMarkdownRequested({
+    required this.documentId,
+    this.title,
+    this.content,
+    this.saveAsVersion = false,
+    this.versionRemark,
+  });
+
+  @override
+  List<Object?> get props => [documentId, title, content, saveAsVersion, versionRemark];
+}
