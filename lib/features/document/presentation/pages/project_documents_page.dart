@@ -103,8 +103,8 @@ class _ProjectDocumentsViewState extends State<_ProjectDocumentsView> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
         builder: (context, constraints) {
-          // 设置最小宽度为 1000，不足时显示滚动条
-          const double minWidth = 1000;
+          // 设置最小宽度为 1200，不足时显示滚动条
+          const double minWidth = 1200;
           final bool needScroll = constraints.maxWidth < minWidth;
           
           // 从 Bloc 获取选中的文档ID
@@ -115,7 +115,8 @@ class _ProjectDocumentsViewState extends State<_ProjectDocumentsView> {
           Widget content = Row(
             children: [
               // 左侧：文件夹树
-              _buildFolderPanel(),
+              // 暂时隐藏文件夹栏，待功能完善后开启
+              // _buildFolderPanel(),
               // 中间：文档列表
               Expanded(
                 flex: 3,
@@ -151,8 +152,9 @@ class _ProjectDocumentsViewState extends State<_ProjectDocumentsView> {
           if (needScroll) {
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: minWidth),
+              child: SizedBox(
+                width: minWidth,
+                height: constraints.maxHeight,
                 child: content,
               ),
             );

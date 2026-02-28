@@ -28,7 +28,8 @@ class PreviewPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 420,
+      // width: 600, // 原始宽度
+      width: 820, // 增加文件夹栏的宽度 (600 + 220)
       decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border(
