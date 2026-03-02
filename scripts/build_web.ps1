@@ -1,7 +1,7 @@
 # Flutter Web 生产构建脚本
 
 param(
-    [string]$ApiBaseUrl = "http://10.0.0.61:8801/api"
+    [string]$ApiBaseUrl = "/api"
 )
 
 Write-Host "========================================" -ForegroundColor Green
@@ -29,7 +29,7 @@ Write-Host ""
 Write-Host "部署方式:" -ForegroundColor Yellow
 Write-Host "  1. 将 build/web/ 目录内容复制到 Nginx/Apache 服务器" -ForegroundColor White
 Write-Host "  2. 或使用 Python 简单服务器测试:" -ForegroundColor White
-Write-Host "     cd build/web && python -m http.server 8080" -ForegroundColor Gray
+Write-Host "     cd build/web; python -m http.server 8080" -ForegroundColor Gray
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
 
