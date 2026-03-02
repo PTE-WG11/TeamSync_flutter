@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 对接本地 8801 端口后端服务
 class ApiClient {
   // 本地开发使用 localhost
-  static const String _defaultBaseUrl = 'http://localhost:8801/api';
-  // static const String _defaultBaseUrl = 'http://ag.changfanai.com:8801/api/';
+  // static const String _defaultBaseUrl = 'http://localhost:8801/api';
+  static const String _defaultBaseUrl = 'http://ag.changfanai.com:8801/api';
 
   static const String _envBaseUrl =
       String.fromEnvironment('API_BASE_URL', defaultValue: '');

@@ -381,54 +381,99 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
   /// 构建成员选择器
   Widget _buildMemberSelector(List<ProjectMember> members) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.border),
       ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: members.map((member) {
-          final isSelected = _selectedMemberIds.contains(member.id);
-          return FilterChip(
-            label: Text(member.username),
-            selected: isSelected,
-            selectedColor: AppColors.primaryLight,
-            checkmarkColor: AppColors.primary,
-            onSelected: (selected) {
-              setState(() {
-                if (selected) {
-                  _selectedMemberIds.add(member.id);
-                } else {
-                  _selectedMemberIds.remove(member.id);
-                }
-              });
-            },
-            avatar: _buildMemberAvatar(member),
-          );
-        }).toList(),
-      ),
+      child: members.isEmpty
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(
+                  '暂无成员可选',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                ),
+              ),
+            )
+          : Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: members.map((member) {
+                final isSelected = _selectedMemberIds.contains(member.id);
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      if (isSelected) {
+                        _selectedMemberIds.remove(member.id);
+                      } else {
+                        _selectedMemberIds.add(member.id);
+                      }
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(24),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.fromLTRB(6, 6, 12, 6),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primary.withValues(alpha: 0.1)
+                          : Colors.transparent,
+                      border: Border.all(
+                        color: isSelected ? AppColors.primary : AppColors.border,
+                        width: isSelected ? 1.5 : 1,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildMemberAvatar(member, radius: 14),
+                        const SizedBox(width: 8),
+                        Text(
+                          member.username,
+                          style: TextStyle(
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.textPrimary,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                        ),
+                        if (isSelected) ...[
+                          const SizedBox(width: 6),
+                          const Icon(Icons.check,
+                              size: 16, color: AppColors.primary),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
     );
   }
 
   /// 构建成员头像
-  Widget _buildMemberAvatar(ProjectMember member) {
+  Widget _buildMemberAvatar(ProjectMember member, {double radius = 12}) {
     final hasAvatar = member.avatar != null && member.avatar!.trim().isNotEmpty;
-    final initial = member.username.isNotEmpty ? member.username[0].toUpperCase() : '?';
+    final initial =
+        member.username.isNotEmpty ? member.username[0].toUpperCase() : '?';
 
     return CircleAvatar(
-      radius: 12,
+      radius: radius,
       backgroundColor: AppColors.primary,
       backgroundImage: hasAvatar ? NetworkImage(member.avatar!) : null,
       child: hasAvatar
           ? null
           : Text(
               initial,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textInverse,
-                fontSize: 12,
+                fontSize: radius,
               ),
             ),
     );
