@@ -29,15 +29,19 @@ class AuthRegisterRequested extends AuthEvent {
   final String username;
   final String email;
   final String password;
+  final String passwordConfirm;
+  final String joinType;
 
   const AuthRegisterRequested({
     required this.username,
     required this.email,
     required this.password,
+    required this.passwordConfirm,
+    this.joinType = 'join',
   });
 
   @override
-  List<Object?> get props => [username, email, password];
+  List<Object?> get props => [username, email, password, passwordConfirm, joinType];
 }
 
 /// 登出请求

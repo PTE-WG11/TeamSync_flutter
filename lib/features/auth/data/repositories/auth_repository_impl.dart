@@ -70,6 +70,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required String username,
     required String email,
     required String password,
+    required String passwordConfirm,
     String? teamName,
     String? joinType,
   }) async {
@@ -80,6 +81,7 @@ class AuthRepositoryImpl implements AuthRepository {
           'username': username,
           'email': email,
           'password': password,
+          'password_confirm': passwordConfirm,
           if (teamName != null) 'team_name': teamName,
           if (joinType != null) 'join_type': joinType,
         },

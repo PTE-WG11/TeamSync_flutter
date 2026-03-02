@@ -89,6 +89,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         username: event.username,
         email: event.email,
         password: event.password,
+        passwordConfirm: event.passwordConfirm,
+        joinType: event.joinType,
       );
 
       // 注册成功后，根据后端返回的角色状态判断

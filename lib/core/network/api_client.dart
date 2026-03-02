@@ -5,22 +5,43 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// API 客户端配置
 /// 对接本地 8801 端口后端服务
 class ApiClient {
-  static const String _defaultBaseUrl = 'http://10.0.0.61:8801/api';
+  // 本地开发使用 localhost
+  static const String _defaultBaseUrl = 'http://localhost:8801/api';
+  // static const String _defaultBaseUrl = 'http://ag.changfanai.com:8801/api/';
+
   static const String _envBaseUrl =
       String.fromEnvironment('API_BASE_URL', defaultValue: '');
 
-  static String get baseUrl {
-    if (_envBaseUrl.isNotEmpty) return _envBaseUrl;
+  static String _normalizeBaseUrl(String url) {
+    if (url.isEmpty) return url;
+    return url.endsWith('/') ? url : '$url/';
+  }
 
+  static String get baseUrl {
+    // 1. 优先使用编译时传入的环境变量
+    if (_envBaseUrl.isNotEmpty) return _normalizeBaseUrl(_envBaseUrl);
+
+    // 2. Web 环境特殊处理
     if (kIsWeb) {
+      // 生产环境（Release模式）：默认使用相对路径 /api/，由 Nginx 代理转发
+      // 这样可以适应同源部署，无需硬编码域名
+      if (kReleaseMode) {
+        return '/api/';
+      }
+
+      // 开发环境（Debug/Profile模式）：
+      // 前端通常运行在随机端口，后端在固定端口（如 8000）
+      // 尝试自动构建本地后端地址
       final base = Uri.base;
       final scheme = base.scheme.isEmpty ? 'http' : base.scheme;
       final host = base.host;
-      if (host.isEmpty) return _defaultBaseUrl;
-      return '$scheme://$host:8801/api';
+      if (host.isEmpty) return _normalizeBaseUrl(_defaultBaseUrl);
+      return _normalizeBaseUrl('$scheme://$host:8801/api');
+      // return _normalizeBaseUrl('$scheme://$host:8000/api');  // 打包修改-生产环境是8000
     }
 
-    return _defaultBaseUrl;
+    // 3. 移动端/桌面端默认使用配置的地址
+    return _normalizeBaseUrl(_defaultBaseUrl);
   }
 
   static const String _tokenKey = 'auth_token';
@@ -79,7 +100,15 @@ class ApiClient {
         }
         
         // 处理 401 未授权错误 - 尝试刷新 token
+        // 注意：登录、注册、刷新 token 接口的 401 不应该触发刷新逻辑
         if (error.response?.statusCode == 401) {
+          final path = error.requestOptions.path;
+          
+          // 跳过登录相关接口的 401 错误处理
+          if (_isAuthEndpoint(path)) {
+            return handler.next(error);
+          }
+          
           final errorData = error.response?.data;
           final errorMessage = errorData is Map<String, dynamic> 
               ? errorData['detail'] ?? errorData['message'] 
@@ -96,6 +125,17 @@ class ApiClient {
     ));
   }
   
+  /// 判断请求路径是否是认证相关端点（这些端点的 401 不应该触发 token 刷新）
+  bool _isAuthEndpoint(String path) {
+    final authEndpoints = [
+      'auth/login',
+      'auth/register',
+      'auth/refresh',
+      'auth/logout',
+    ];
+    return authEndpoints.any((endpoint) => path.contains(endpoint));
+  }
+
   /// 判断错误是否是 token 过期导致的
   bool _isTokenExpiredError(String? errorMessage) {
     if (errorMessage == null) return true; // 默认认为是token问题
@@ -178,7 +218,7 @@ class ApiClient {
       ));
       
       final response = await refreshDio.post(
-        '/auth/refresh/',
+        _normalizePath('auth/refresh/'),
         data: {'refresh': refreshToken},
       );
       
@@ -272,6 +312,11 @@ class ApiClient {
     await prefs.remove(_refreshTokenKey);
   }
   
+  String _normalizePath(String path) {
+    if (path.isEmpty) return path;
+    return path.startsWith('/') ? path.substring(1) : path;
+  }
+
   /// GET 请求
   Future<Response> get(
     String path, {
@@ -280,7 +325,7 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.get(
-        path,
+        _normalizePath(path),
         queryParameters: queryParameters,
         options: options,
       );
@@ -300,7 +345,7 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.post(
-        path,
+        _normalizePath(path),
         data: data,
         queryParameters: queryParameters,
         options: options,
@@ -321,7 +366,7 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.put(
-        path,
+        _normalizePath(path),
         data: data,
         queryParameters: queryParameters,
         options: options,
@@ -342,7 +387,7 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.patch(
-        path,
+        _normalizePath(path),
         data: data,
         queryParameters: queryParameters,
         options: options,
@@ -363,7 +408,7 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.delete(
-        path,
+        _normalizePath(path),
         data: data,
         queryParameters: queryParameters,
         options: options,
